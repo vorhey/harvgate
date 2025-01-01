@@ -9,6 +9,7 @@ local M = {}
 M.chat_window = nil
 M.current_chat = nil
 M.chat_id = nil
+M.message_history = {}
 
 -- Create chat layout with messages and input
 local function create_chat_layout()
@@ -112,7 +113,7 @@ local send_message = async.void(function(input_text)
 
 	vim.schedule(function()
 		M.append_text("\nYou: " .. input_text)
-		M.append_text("\nClaude: *thinking...*")
+		M.append_text("\nClaude: *thinking...*", false)
 	end)
 
 	async.util.sleep(100) -- Small delay to ensure UI updates
@@ -131,12 +132,6 @@ end)
 
 -- Function to toggle the chat window
 function M.toggle_chat(session)
-	if M.chat_window and M.chat_window.layout then
-		M.chat_window.layout:unmount()
-		M.chat_window = nil
-		return
-	end
-
 	async.void(function()
 		if not M.current_chat then
 			M.current_chat = Chat.new(session)
@@ -148,19 +143,22 @@ function M.toggle_chat(session)
 		end
 
 		M.chat_window = create_chat_layout()
-
-		local function close_window()
-			M.chat_window.layout:unmount()
-			M.chat_window = nil
-		end
+		M.restore_messages()
 
 		M.chat_window.input:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
 		M.chat_window.messages:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
 
-		M.chat_window.messages:map("n", "<Esc>", close_window, { noremap = true })
-		M.chat_window.messages:map("n", "q", close_window, { noremap = true })
-		M.chat_window.input:map("n", "<Esc>", close_window, { noremap = true })
-		M.chat_window.input:map("n", "q", close_window, { noremap = true })
+		local function close_chat()
+			if M.chat_window and M.chat_window.layout then
+				M.chat_window.layout:unmount()
+				M.chat_window = nil
+			end
+		end
+
+		M.chat_window.messages:map("n", "<Esc>", close_chat, { noremap = true })
+		M.chat_window.messages:map("n", "q", close_chat, { noremap = true })
+		M.chat_window.input:map("n", "<Esc>", close_chat, { noremap = true })
+		M.chat_window.input:map("n", "q", close_chat, { noremap = true })
 
 		M.chat_window.input:map("n", "<C-s>", function()
 			local lines = vim.api.nvim_buf_get_lines(M.chat_window.input.bufnr, 0, -1, false)
@@ -180,10 +178,23 @@ function M.toggle_chat(session)
 	end)()
 end
 
+function M.restore_messages()
+	if M.chat_window and M.chat_window.messages.bufnr then
+		for _, msg in ipairs(M.message_history) do
+			local lines = vim.split(msg, "\n")
+			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		end
+	end
+end
+
 -- Function to append text to chat window
-function M.append_text(text)
+function M.append_text(text, save_history)
+	save_history = save_history ~= false
 	if M.chat_window and M.chat_window.messages.bufnr then
 		local lines = vim.split(text, "\n")
+		if save_history then
+			table.insert(M.message_history, text)
+		end
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
 		-- Scroll to bottom
 		local line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
