@@ -110,16 +110,22 @@ local send_message = async.void(function(input_text)
 		return
 	end
 
-	-- Append user message to chat
 	vim.schedule(function()
 		M.append_text("\nYou: " .. input_text)
+		M.append_text("\nClaude: *thinking...*")
 	end)
+
+	async.util.sleep(100) -- Small delay to ensure UI updates
 
 	-- Send message to Claude
 	local response = M.current_chat:send_message(M.chat_id, input_text)
 
 	if response then
-		M.append_text("\nClaude: " .. response)
+		vim.schedule(function()
+			local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
+			M.append_text("Claude: \n" .. response)
+		end)
 	end
 end)
 
