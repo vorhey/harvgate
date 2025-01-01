@@ -3,15 +3,46 @@ local Layout = require("nui.layout")
 local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 
+---@class Layout
+---@field mount function Mount the layout
+---@field unmount function Unmount the layout
+
+---@class Popup
+---@field winid number Window ID
+---@field bufnr number Buffer number
+---@field map fun(mode: string, lhs: string, rhs: function|string, opts: table) Map key in window
+
+---@class ChatWindow
+---@field layout Layout Layout manager instance
+---@field messages Popup Messages window popup
+---@field input Popup Input window popup
+---@field focus_input function Focus the input window
+---@field focus_messages function Focus the messages window
+
+---@class Chat
+---@field new fun(session: Session): Chat Create new chat instance
+---@field create_chat fun(self: Chat): string Create new chat conversation
+---@field send_message fun(self: Chat, chat_id: string, message: string): string Send message to chat
+
+--- Module for Claude chat interface
+---@class ChatModule
+---@field session any Current session
+---@field chat_window ChatWindow|nil Current chat window
+---@field current_chat Chat|nil Current chat instance
+---@field chat_id string|nil Current chat ID
+---@field is_chat_visible boolean|nil Chat visibility state
+---@field message_history string[] Message history
 local M = {}
 
 -- Store the chat instance and current conversation
+M.session = nil
 M.chat_window = nil
 M.current_chat = nil
 M.chat_id = nil
+M.is_chat_visible = nil
 M.message_history = {}
 
--- Create chat layout with messages and input
+-- Creates the chat window layout (messages and input)
 local function create_chat_layout()
 	-- Messages window
 	local messages_popup = Popup({
@@ -64,19 +95,20 @@ local function create_chat_layout()
 	-- Create layout
 	local layout = Layout(
 		{
-			position = "50%",
+			position = "50%", -- Position in the middle of the editor
 			relative = "editor",
 			size = {
 				width = "80%",
-				height = "80%",
+				height = "100%",
 			},
 		},
 		Layout.Box({
-			Layout.Box(messages_popup, { size = "80%" }),
-			Layout.Box(input_popup, { size = "20%" }),
-		}, { dir = "col" })
+			Layout.Box(messages_popup, { size = "70%" }),
+			Layout.Box(input_popup, { size = "30%" }),
+		}, { dir = "col", size = "100%" })
 	)
 
+	-- Functions for focusing the input and message windows
 	local function focus_input()
 		if input_popup and input_popup.winid and vim.api.nvim_win_is_valid(input_popup.winid) then
 			vim.schedule(function()
@@ -102,13 +134,15 @@ local function create_chat_layout()
 	}
 end
 
--- Function to handle sending messages
-local send_message = async.void(function(input_text)
-	if not M.current_chat or not M.chat_id then
-		vim.schedule(function()
-			vim.notify("Chat not initialized", vim.log.levels.ERROR)
-		end)
-		return
+---@param input_text string Message to send
+M.send_message = async.void(function(input_text)
+	if not M.current_chat then
+		M.current_chat = Chat.new(M.session)
+		M.chat_id = M.current_chat:create_chat()
+		if not M.chat_id then
+			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
+			return
+		end
 	end
 
 	vim.schedule(function()
@@ -130,54 +164,84 @@ local send_message = async.void(function(input_text)
 	end
 end)
 
--- Function to toggle the chat window
+---Start new conversation
+M.new_conversation = async.void(function()
+	if not M.session then
+		vim.notify("No active session", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Clear message history
+	M.message_history = {}
+
+	-- Create new chat
+	M.current_chat = Chat.new(M.session)
+	M.chat_id = M.current_chat:create_chat()
+
+	if not M.chat_id then
+		vim.notify("Failed to create new chat conversation", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Clear the messages window
+	if M.chat_window and M.chat_window.messages.bufnr then
+		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
+	end
+
+	vim.notify("Started new conversation", vim.log.levels.INFO)
+end)
+
+---Close chat window
+function M.close_chat()
+	M.chat_window.layout:unmount()
+	M.chat_window = nil
+	M.is_visible = false
+end
+
+local function setup_input_keymaps(input_win)
+	input_win:map("n", "<Esc>", M.close_chat, { noremap = true })
+	input_win:map("n", "q", M.close_chat, { noremap = true })
+	input_win:map("n", "<C-h>", M.new_conversation, { noremap = true })
+	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
+
+	local function send_input()
+		local lines = vim.api.nvim_buf_get_lines(input_win.bufnr, 0, -1, false)
+		local input_text = table.concat(lines, "\n")
+		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
+		M.send_message(input_text)
+	end
+
+	input_win:map("n", "<C-s>", send_input, { noremap = true })
+	input_win:map("i", "<C-s>", send_input, { noremap = true })
+end
+
+local function setup_messages_keymaps(messages_win)
+	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
+	messages_win:map("n", "<Esc>", M.close_chat, { noremap = true })
+	messages_win:map("n", "q", M.close_chat, { noremap = true })
+	messages_win:map("n", "<C-h>", M.new_conversation, { noremap = true })
+end
+
+---@param session any Chat session
 function M.toggle_chat(session)
 	async.void(function()
-		if not M.current_chat then
-			M.current_chat = Chat.new(session)
-			M.chat_id = M.current_chat:create_chat()
-			if not M.chat_id then
-				vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
-				return
-			end
+		M.session = session
+		if M.is_visible and M.chat_window then
+			return M.close_chat()
 		end
 
 		M.chat_window = create_chat_layout()
 		M.restore_messages()
 
-		M.chat_window.input:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
-		M.chat_window.messages:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
-
-		local function close_chat()
-			if M.chat_window and M.chat_window.layout then
-				M.chat_window.layout:unmount()
-				M.chat_window = nil
-			end
-		end
-
-		M.chat_window.messages:map("n", "<Esc>", close_chat, { noremap = true })
-		M.chat_window.messages:map("n", "q", close_chat, { noremap = true })
-		M.chat_window.input:map("n", "<Esc>", close_chat, { noremap = true })
-		M.chat_window.input:map("n", "q", close_chat, { noremap = true })
-
-		M.chat_window.input:map("n", "<C-s>", function()
-			local lines = vim.api.nvim_buf_get_lines(M.chat_window.input.bufnr, 0, -1, false)
-			local input_text = table.concat(lines, "\n")
-			vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, { "" })
-			send_message(input_text)
-		end, { noremap = true })
-
-		M.chat_window.input:map("i", "<C-s>", function()
-			local lines = vim.api.nvim_buf_get_lines(M.chat_window.input.bufnr, 0, -1, false)
-			local input_text = table.concat(lines, "\n")
-			vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, { "" })
-			send_message(input_text)
-		end, { noremap = true })
+		setup_input_keymaps(M.chat_window.input)
+		setup_messages_keymaps(M.chat_window.messages)
 
 		M.chat_window.layout:mount()
+		M.is_visible = true
 	end)()
 end
 
+---Restore message history
 function M.restore_messages()
 	if M.chat_window and M.chat_window.messages.bufnr then
 		for _, msg in ipairs(M.message_history) do
@@ -187,7 +251,8 @@ function M.restore_messages()
 	end
 end
 
--- Function to append text to chat window
+---@param text string Text to append
+---@param save_history boolean? Save to history (default: true)
 function M.append_text(text, save_history)
 	save_history = save_history ~= false
 	if M.chat_window and M.chat_window.messages.bufnr then

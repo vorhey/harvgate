@@ -21,9 +21,16 @@ end
 ---@return string|nil The UUID of the newly created chat, or nil if an error occurred
 function Chat:create_chat()
 	local url = string.format("%s/api/organizations/%s/chat_conversations", BASE_URL, self.session.organization_id)
-	local name = os.date("Chat - %Y-%m-%d %H:%M:%S")
 	local new_uuid = utils.uuidv4()
-	local payload = { name = name, uuid = new_uuid }
+	local payload = {
+		name = "",
+		uuid = new_uuid,
+		message = {
+			content = "Please give this chat a title based on my first message.",
+			attachments = {},
+			files = {},
+		},
+	}
 	local encoded_payload = vim.json.encode(payload)
 	local headers = {
 		["Host"] = "claude.ai",
