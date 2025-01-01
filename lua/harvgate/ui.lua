@@ -33,7 +33,12 @@ local function create_chat_layout()
 		},
 		relative = "editor",
 	})
-
+	vim.schedule(function()
+		if messages_popup.bufnr then
+			vim.api.nvim_buf_set_option(messages_popup.bufnr, "syntax", "markdown")
+			vim.api.nvim_buf_set_option(messages_popup.bufnr, "filetype", "markdown")
+		end
+	end)
 	-- Input window
 	local input_popup = Popup({
 		enter = true,
@@ -48,7 +53,6 @@ local function create_chat_layout()
 		buf_options = {
 			modifiable = true,
 			readonly = false,
-			filetype = "markdown",
 		},
 		win_options = {
 			wrap = true,
