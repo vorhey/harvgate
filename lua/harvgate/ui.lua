@@ -2,6 +2,7 @@ local Popup = require("nui.popup")
 local Layout = require("nui.layout")
 local Chat = require("harvgate.chat")
 local async = require("plenary.async")
+local utils = require("harvgate.utils")
 
 ---@class Layout
 ---@field mount function Mount the layout
@@ -147,7 +148,8 @@ M.send_message = async.void(function(input_text)
 	end
 
 	vim.schedule(function()
-		M.append_text("\nYou: " .. input_text)
+		local trimmed_message = utils.trim_message(input_text)
+		M.append_text("\nYou: " .. trimmed_message .. "\n")
 		M.append_text("\nClaude: *thinking...*", false)
 	end)
 
