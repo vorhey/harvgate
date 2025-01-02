@@ -5,7 +5,6 @@ A Neovim plugin for chatting with Claude directly in your editor using your clau
 ## Features
 - Chat with Claude
 - Authenticate using your anthropic claude session browser cookie (no API key needed)
-- Code-aware context sharing
 - Syntax highlighted responses
 
 ## Requirements
@@ -26,13 +25,12 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```
 
 ## Configuration
+
+
+Harvgate will attempt to load your cookie from the environment variable `CLAUDE_COOKIE` if it is set.
+
 ```lua
 require('harvgate').setup({
-  cookie = "your_claude_cookie", -- Required: Cookie from browser session
-  window = {
-    width = 0.8,    -- Width of chat window (0-1)
-    height = 0.8,   -- Height of chat window (0-1)
-    border = "rounded"
-  }
+  cookie = "your_claude_cookie", -- Required: Cookie from browser session, e.g. sessionKey=sk-ant-sidxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 })
 ```
