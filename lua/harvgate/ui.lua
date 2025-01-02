@@ -4,35 +4,6 @@ local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
 
----@class Layout
----@field mount function Mount the layout
----@field unmount function Unmount the layout
-
----@class Popup
----@field winid number Window ID
----@field bufnr number Buffer number
----@field map fun(mode: string, lhs: string, rhs: function|string, opts: table) Map key in window
-
----@class ChatWindow
----@field layout Layout Layout manager instance
----@field messages Popup Messages window popup
----@field input Popup Input window popup
----@field focus_input function Focus the input window
----@field focus_messages function Focus the messages window
-
----@class Chat
----@field new fun(session: Session): Chat Create new chat instance
----@field create_chat fun(self: Chat): string Create new chat conversation
----@field send_message fun(self: Chat, chat_id: string, message: string): string Send message to chat
-
---- Module for Claude chat interface
----@class ChatModule
----@field session any Current session
----@field chat_window ChatWindow|nil Current chat window
----@field current_chat Chat|nil Current chat instance
----@field chat_id string|nil Current chat ID
----@field is_chat_visible boolean|nil Chat visibility state
----@field message_history string[] Message history
 local M = {}
 
 -- Store the chat instance and current conversation
@@ -158,13 +129,16 @@ M.send_message = async.void(function(input_text)
 	-- Send message to Claude
 	local response = M.current_chat:send_message(M.chat_id, input_text)
 
-	if response then
-		vim.schedule(function()
-			local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
-			M.append_text("Claude: \n" .. response)
-		end)
-	end
+	vim.schedule(function()
+		if not response then
+			vim.notify("Error sending message: " .. tostring(response), vim.log.levels.ERROR)
+			return
+		end
+
+		local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
+		M.append_text("Claude: \n" .. response)
+	end)
 end)
 
 ---Start new conversation
@@ -218,11 +192,21 @@ local function setup_input_keymaps(input_win)
 		local lines = vim.api.nvim_buf_get_lines(input_win.bufnr, 0, -1, false)
 		local input_text = table.concat(lines, "\n")
 		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
-		M.send_message(input_text)
+		async.run(function()
+			M.send_message(input_text)
+		end)
 	end
 
-	input_win:map("n", "<C-s>", send_input, { noremap = true })
-	input_win:map("i", "<C-s>", send_input, { noremap = true })
+	input_win:map("n", "<C-s>", function()
+		async.run(function()
+			send_input()
+		end)
+	end, { noremap = true })
+	input_win:map("i", "<C-s>", function()
+		async.run(function()
+			send_input()
+		end)
+	end, { noremap = true })
 end
 
 local function setup_messages_keymaps(messages_win)
