@@ -41,6 +41,7 @@ M.current_chat = nil
 M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
+M.saved_cursor_pos = nil
 
 -- Creates the chat window layout (messages and input)
 local function create_chat_layout()
@@ -193,6 +194,13 @@ end)
 
 ---Close chat window
 function M.close_chat()
+	if
+		M.chat_window
+		and M.chat_window.messages.winid
+		and vim.api.nvim_get_current_win() == M.chat_window.messages.winid
+	then
+		M.saved_cursor_pos = vim.api.nvim_win_get_cursor(M.chat_window.messages.winid)
+	end
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
@@ -247,6 +255,15 @@ function M.restore_messages()
 		for _, msg in ipairs(M.message_history) do
 			local lines = vim.split(msg, "\n")
 			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		end
+		if M.saved_cursor_pos then
+			vim.schedule(function()
+				vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, M.saved_cursor_pos)
+				local win_height = vim.api.nvim_win_get_height(M.chat_window.messages.winid)
+				local cursor_line = M.saved_cursor_pos[1]
+				vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { cursor_line, 0 })
+				vim.fn.winrestview({ topline = math.max(1, cursor_line - math.floor(win_height / 2)) })
+			end)
 		end
 	end
 end
