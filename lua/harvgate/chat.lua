@@ -56,7 +56,11 @@ Chat.create_chat = async.wrap(function(self, cb)
 		headers = headers,
 		body = encoded_payload,
 		timeout = self.session.timeout,
-		agent = "chrome110",
+		http_version = "HTTP/2",
+		raw = {
+			"--tlsv1.3",
+			"--ipv4",
+		},
 		callback = vim.schedule_wrap(function(response)
 			if not response then
 				vim.notify("Async error: Failed to receive response.", vim.log.levels.ERROR)
@@ -129,7 +133,11 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		headers = headers,
 		body = encoded_payload,
 		timeout = self.session.timeout,
-		agent = "chrome110",
+		http_version = "HTTP/2",
+		raw = {
+			"--tlsv1.3",
+			"--ipv4",
+		},
 		callback = vim.schedule_wrap(function(response)
 			if not response or response.status ~= 200 then
 				vim.notify(
