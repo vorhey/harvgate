@@ -209,7 +209,7 @@ end
 local function setup_input_keymaps(input_win)
 	input_win:map("n", "<Esc>", M.close_chat, { noremap = true })
 	input_win:map("n", "q", M.close_chat, { noremap = true })
-	input_win:map("n", "<C-h>", M.new_conversation, { noremap = true })
+	input_win:map("n", "<C-g>", M.new_conversation, { noremap = true })
 	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
 
 	local function send_input()
@@ -227,7 +227,7 @@ local function setup_messages_keymaps(messages_win)
 	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
 	messages_win:map("n", "<Esc>", M.close_chat, { noremap = true })
 	messages_win:map("n", "q", M.close_chat, { noremap = true })
-	messages_win:map("n", "<C-h>", M.new_conversation, { noremap = true })
+	messages_win:map("n", "<C-g>", M.new_conversation, { noremap = true })
 end
 
 ---@param session any Chat session
