@@ -18,7 +18,7 @@ chat = chat_module.new(session)
 
 async.tests.describe("Chat Integration", function()
 	async.tests.before_each(function()
-		vim.uv.sleep(3000)
+		vim.wait(5000, function() end)
 	end)
 
 	async.tests.it("should create chat", function()
@@ -30,9 +30,9 @@ async.tests.describe("Chat Integration", function()
 	end)
 
 	async.tests.it("should send message", function()
-		local chat_id = chat:create_chat()
-		assert(chat_id ~= nil, "chat_id should not be nil")
 		local prompt = "Hello"
+		local chat_id = chat:create_chat()
+		assert.is_not_nil(chat_id, "chat_id should not be nil")
 		local message = chat:send_message(chat_id, prompt)
 		assert.is_not_nil(message, "message should not be nil")
 		assert.is_string(message, "message should be a string")
