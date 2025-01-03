@@ -4,6 +4,7 @@ function M.check()
 	local health = vim.health or require("health")
 	local start = health.start or health.report_start
 	local ok = health.ok or health.report_ok
+	local warn = health.warn or health.report_warn
 	local error = health.error or health.report_error
 
 	start("harvgate.nvim")
@@ -23,8 +24,25 @@ function M.check()
 		error("nui.nvim not installed")
 	end
 
-	-- Check for optional dependencies if any
-	-- Add more dependency checks as needed
+	local env_cookie = os.getenv("CLAUDE_COOKIE")
+	if env_cookie then
+		warn(
+			"CLAUDE_COOKIE environment variable is set. This will be used as default if no cookie is provided in setup()"
+		)
+	end
+
+	local config = require("harvgate").config
+	if config.cookie then
+		ok("Cookie is configured")
+	else
+		error("Cookie is not set. Configure it in setup()")
+	end
+
+	if config.organization_id then
+		ok("Organization ID is configured")
+	else
+		warn("Organization ID is not set (optional)")
+	end
 end
 
 return M

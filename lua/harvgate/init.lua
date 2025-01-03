@@ -54,7 +54,4 @@ function M.toggle()
 	ui.toggle_chat(session)
 end
 
--- Health check module
-M.health = require("harvgate.healthcheck")
-
 return M
