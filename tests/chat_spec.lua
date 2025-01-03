@@ -13,7 +13,7 @@ local cookie = os.getenv("CLAUDE_COOKIE")
 if not cookie then
 	error("Please set CLAUDE_COOKIE environment variable")
 end
-session = session_module.new(cookie, nil, nil)
+session = session_module.new(cookie, nil)
 chat = chat_module.new(session)
 
 async.tests.describe("Chat Integration", function()

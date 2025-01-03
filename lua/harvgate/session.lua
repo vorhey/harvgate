@@ -38,14 +38,13 @@ end
 
 ---@param cookie string
 ---@param organization_id string | nil
----@param user_agent string | nil
 ---@return Session
-function M.new(cookie, organization_id, user_agent)
+function M.new(cookie, organization_id)
 	assert(cookie and #cookie > 0, "Cookie is required and must be a non-empty string.")
 
 	local self = setmetatable({
 		cookie = cookie,
-		user_agent = user_agent or DEFAULT_USER_AGENT,
+		user_agent = DEFAULT_USER_AGENT,
 	}, M)
 
 	if not organization_id then
