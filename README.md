@@ -34,6 +34,11 @@ require('harvgate').setup({
   cookie = "your_claude_cookie", -- Required: Cookie from browser session, e.g. sessionKey=sk-ant-sidxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 })
 ```
+## Contributing
+
+### Commit Convention
+
+This project follows the [Conventional Commits](https://www.conventionalcommits.org/) specification.
 
 # Testing
 
