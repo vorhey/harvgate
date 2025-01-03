@@ -237,4 +237,56 @@ Chat.list_chats = async.wrap(function(self, cb)
 	})
 end, 2)
 
+Chat.list_chats = async.wrap(function(self, cb)
+	local url = string.format("%s/api/organizations/%s/chat_conversations", BASE_URL, self.session.organization_id)
+	local headers = {
+		["Host"] = "claude.ai",
+		["User-Agent"] = self.session.user_agent,
+		["Accept"] = "application/json",
+		["Accept-Language"] = "en-US,en;q=0.5",
+		["Accept-Encoding"] = "gzip, deflate, br",
+		["Referer"] = string.format("%s/chats", BASE_URL),
+		["Origin"] = BASE_URL,
+		["DNT"] = "1",
+		["Sec-Fetch-Dest"] = "empty",
+		["Sec-Fetch-Mode"] = "cors",
+		["Sec-Fetch-Site"] = "same-origin",
+		["Connection"] = "keep-alive",
+		["Cookie"] = self.session.cookie,
+		["TE"] = "trailers",
+	}
+	curl.get({
+		url = url,
+		headers = headers,
+		timeout = self.session.timeout,
+		http_version = "HTTP/2",
+		raw = {
+			"--tlsv1.3",
+			"--ipv4",
+		},
+		callback = vim.schedule_wrap(function(response)
+			if not response then
+				vim.notify("Async error: Failed to receive response.", vim.log.levels.ERROR)
+				cb(nil)
+				return
+			end
+			if response.status ~= 200 then
+				vim.notify(
+					string.format("Request to %s failed with status: %d", url, response.status),
+					vim.log.levels.ERROR
+				)
+				cb(nil)
+				return
+			end
+			local ok, j = pcall(vim.json.decode, response.body)
+			if not ok then
+				vim.notify("Failed to decode response JSON", vim.log.levels.ERROR)
+				cb(nil)
+				return
+			end
+			cb(j)
+		end),
+	})
+end, 2)
+
 return Chat

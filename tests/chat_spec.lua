@@ -40,4 +40,23 @@ async.tests.describe("Chat Integration", function()
 		print("Successfully sent message: " .. prompt)
 		print("Successfully received message: " .. message)
 	end)
+
+	async.tests.it("should list chats", function()
+		local chats = chat:list_chats()
+		assert.is_not_nil(chats, "chats should not be nil")
+		assert.is_table(chats, "chats should be a table")
+		for _, chat_item in ipairs(chats) do
+			assert.is_not_nil(chat_item.uuid, "chat uuid should not be nil")
+			assert.is_string(chat_item.uuid, "chat uuid should be a string")
+			assert.is_not.equals("", chat_item.uuid, "chat uuid should not be empty")
+
+			assert.is_not_nil(chat_item.name, "chat name should not be nil")
+			assert.is_string(chat_item.name, "chat name should be a string")
+
+			assert.is_not_nil(chat_item.created_at, "chat created_at should not be nil")
+			assert.is_string(chat_item.created_at, "chat created_at should be a string")
+			assert.is_not.equals("", chat_item.created_at, "chat created_at should not be empty")
+		end
+		print("Successfully retrieved chat list with " .. #chats .. " chats")
+	end)
 end)
