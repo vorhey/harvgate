@@ -7,6 +7,7 @@ local utils = require("harvgate.utils")
 local M = {}
 
 -- Store the chat instance and current conversation
+M.config = nil
 M.session = nil
 M.chat_window = nil
 M.current_chat = nil
@@ -14,6 +15,9 @@ M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
 M.saved_cursor_pos = nil
+
+DEFAULT_WINDOW_WIDTH = 80
+DEFAULT_WINDOW_HEIGHT = 80
 
 ---@param text string Text to append
 ---@param save_history boolean? Save to history (default: true)
@@ -162,14 +166,14 @@ local create_chat_layout = function()
 			position = "50%", -- Position in the middle of the editor
 			relative = "editor",
 			size = {
-				width = "80%",
-				height = "100%",
+				width = string.format("%d%%", M.config.width or DEFAULT_WINDOW_WIDTH),
+				height = string.format("%d%%", M.config.height or DEFAULT_WINDOW_HEIGHT),
 			},
 		},
 		Layout.Box({
 			Layout.Box(messages_popup, { size = "70%" }),
-			Layout.Box(input_popup, { size = "30%" }),
-		}, { dir = "col", size = "100%" })
+			Layout.Box(input_popup, { size = "30%", grow = 1 }),
+		}, { dir = "col", size = "100" })
 	)
 
 	-- Functions for focusing the input and message windows
@@ -268,6 +272,17 @@ M.window_toggle = function(session)
 		M.chat_window.layout:mount()
 		M.is_visible = true
 	end)()
+end
+
+---@param config Config
+M.setup = function(config)
+	M.config = config
+	if M.config.width and (not utils.is_number(M.config.width) or M.config.width > 100 or M.config.width < 40) then
+		vim.notify("Invalid width value should be between 100 and 40, falling back to default", vim.log.levels.WARN)
+	end
+	if M.config.height and (not utils.is_number(M.config.height) or M.config.height > 100 or M.config.height < 40) then
+		vim.notify("Invalid height value should be between 100 and 40, falling back to default", vim.log.levels.WARN)
+	end
 end
 
 return M

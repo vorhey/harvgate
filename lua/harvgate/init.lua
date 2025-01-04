@@ -1,6 +1,8 @@
 ---@class Config
 ---@field cookie string Claude AI cookie for authentication
 ---@field organization_id? string Optional organization ID
+---@field width? number Window width
+---@field height? number Window height
 
 local ui = require("harvgate.ui")
 local Session = require("harvgate.session")
@@ -14,6 +16,8 @@ local M = {}
 local default_config = {
 	cookie = os.getenv("CLAUDE_COOKIE"),
 	organization_id = nil,
+	width = nil,
+	height = nil,
 }
 
 local function setup_session()
@@ -35,6 +39,8 @@ function M.setup(opts)
 		vim.notify("harvgate: cookie is required in setup()", vim.log.levels.INFO)
 		return
 	end
+
+	ui.setup(M.config)
 
 	-- Create user commands
 	vim.api.nvim_create_user_command("HarvgateChat", M.toggle, {})
