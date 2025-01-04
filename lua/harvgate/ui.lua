@@ -15,6 +15,7 @@ M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
 M.saved_cursor_pos = nil
+M.cursor_autocmd = nil
 
 DEFAULT_WINDOW_WIDTH = 80
 DEFAULT_WINDOW_HEIGHT = 80
@@ -98,6 +99,11 @@ end)
 
 ---Close chat window
 local window_close = function()
+	if M.cursor_autocmd then
+		vim.api.nvim_del_autocmd(M.cursor_autocmd)
+		M.cursor_autocmd = nil
+	end
+
 	if
 		M.chat_window
 		and M.chat_window.messages.winid
@@ -105,6 +111,7 @@ local window_close = function()
 	then
 		M.saved_cursor_pos = vim.api.nvim_win_get_cursor(M.chat_window.messages.winid)
 	end
+
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
@@ -175,6 +182,19 @@ local create_chat_layout = function()
 			Layout.Box(input_popup, { size = "30%", grow = 1 }),
 		}, { dir = "col", size = "100" })
 	)
+
+	local function is_cursor_in_layout()
+		local current_win = vim.api.nvim_get_current_win()
+		return current_win == messages_popup.winid or current_win == input_popup.winid
+	end
+
+	M.cursor_autocmd = vim.api.nvim_create_autocmd("CursorMoved", {
+		callback = function()
+			if M.is_visible and not is_cursor_in_layout() then
+				window_close()
+			end
+		end,
+	})
 
 	-- Functions for focusing the input and message windows
 	local function focus_input()
