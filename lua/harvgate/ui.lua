@@ -3,6 +3,7 @@ local Layout = require("nui.layout")
 local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
+local event = require("nui.utils.autocmd").event
 
 local M = {}
 
@@ -14,6 +15,7 @@ M.current_chat = nil
 M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
+M.input_history = {}
 M.saved_cursor_pos = nil
 M.cursor_autocmd = nil
 
@@ -196,6 +198,11 @@ local create_chat_layout = function()
 		end,
 	})
 
+	input_popup:on({ event.BufLeave }, function()
+		local lines = vim.api.nvim_buf_get_lines(input_popup.bufnr, 0, -1, false)
+		table.insert(M.input_history, lines)
+	end)
+
 	-- Functions for focusing the input and message windows
 	local function focus_input()
 		if input_popup and input_popup.winid and vim.api.nvim_win_is_valid(input_popup.winid) then
@@ -262,6 +269,10 @@ local window_restore_messages = function()
 		for _, msg in ipairs(M.message_history) do
 			local lines = vim.split(msg, "\n")
 			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		end
+		if #M.input_history > 0 then
+			local last_input = M.input_history[#M.input_history]
+			vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, last_input)
 		end
 		if M.saved_cursor_pos then
 			vim.schedule(function()
