@@ -265,11 +265,11 @@ local window_restore_messages = function()
 		end
 		if M.saved_cursor_pos then
 			vim.schedule(function()
-				vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, M.saved_cursor_pos)
-				local win_height = vim.api.nvim_win_get_height(M.chat_window.messages.winid)
-				local cursor_line = M.saved_cursor_pos[1]
-				vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { cursor_line, 0 })
-				vim.fn.winrestview({ topline = math.max(1, cursor_line - math.floor(win_height / 2)) })
+				if pcall(vim.api.nvim_win_set_cursor, M.chat_window.messages.winid, M.saved_cursor_pos) then
+					local win_height = vim.api.nvim_win_get_height(M.chat_window.messages.winid)
+					local cursor_line = M.saved_cursor_pos[1]
+					vim.fn.winrestview({ topline = math.max(1, cursor_line - math.floor(win_height / 2)) })
+				end
 			end)
 		end
 	end
