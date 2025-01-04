@@ -51,7 +51,7 @@ function M.toggle()
 		return
 	end
 
-	ui.toggle_chat(session)
+	ui.window_toggle(session)
 end
 
 return M

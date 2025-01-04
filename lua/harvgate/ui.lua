@@ -15,8 +15,99 @@ M.is_chat_visible = nil
 M.message_history = {}
 M.saved_cursor_pos = nil
 
+---@param text string Text to append
+---@param save_history boolean? Save to history (default: true)
+local window_append_text = function(text, save_history)
+	save_history = save_history ~= false
+	if M.chat_window and M.chat_window.messages.bufnr then
+		local lines = vim.split(text, "\n")
+		if save_history then
+			table.insert(M.message_history, text)
+		end
+		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		-- Scroll to bottom
+		local line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+		vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { line_count, 0 })
+	end
+end
+
+---@param input_text string Message to send
+local chat_send_message = async.void(function(input_text)
+	if not M.current_chat then
+		M.current_chat = Chat.new(M.session)
+		M.chat_id = M.current_chat:create_chat()
+		if not M.chat_id then
+			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
+			return
+		end
+	end
+
+	vim.schedule(function()
+		local trimmed_message = utils.trim_message(input_text)
+		window_append_text("\nYou: " .. trimmed_message .. "\n")
+		window_append_text("\nClaude: *thinking...*", false)
+	end)
+
+	async.util.sleep(100) -- Small delay to ensure UI updates
+
+	-- Send message to Claude
+	local response = M.current_chat:send_message(M.chat_id, input_text)
+
+	vim.schedule(function()
+		if not response then
+			vim.notify("Error sending message: " .. tostring(response), vim.log.levels.ERROR)
+			return
+		end
+
+		local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
+		window_append_text("Claude: \n" .. response)
+	end)
+end)
+
+---Start new conversation
+local chat_new_conversation = async.void(function()
+	if not M.session then
+		vim.notify("No active session", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Clear message history
+	M.message_history = {}
+
+	-- Create new chat
+	M.current_chat = Chat.new(M.session)
+	M.chat_id = M.current_chat:create_chat()
+
+	if not M.chat_id then
+		vim.notify("Failed to create new chat conversation", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Clear the messages window
+	if M.chat_window and M.chat_window.messages.bufnr then
+		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
+	end
+
+	vim.notify("Started new conversation", vim.log.levels.INFO)
+end)
+
+---Close chat window
+local window_close = function()
+	if
+		M.chat_window
+		and M.chat_window.messages.winid
+		and vim.api.nvim_get_current_win() == M.chat_window.messages.winid
+	then
+		M.saved_cursor_pos = vim.api.nvim_win_get_cursor(M.chat_window.messages.winid)
+	end
+	M.chat_window.layout:unmount()
+	M.chat_window = nil
+	M.is_visible = false
+end
+
 -- Creates the chat window layout (messages and input)
-local function create_chat_layout()
+local create_chat_layout = function()
 	-- Messages window
 	local messages_popup = Popup({
 		enter = false,
@@ -107,85 +198,10 @@ local function create_chat_layout()
 	}
 end
 
----@param input_text string Message to send
-M.send_message = async.void(function(input_text)
-	if not M.current_chat then
-		M.current_chat = Chat.new(M.session)
-		M.chat_id = M.current_chat:create_chat()
-		if not M.chat_id then
-			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
-			return
-		end
-	end
-
-	vim.schedule(function()
-		local trimmed_message = utils.trim_message(input_text)
-		M.append_text("\nYou: " .. trimmed_message .. "\n")
-		M.append_text("\nClaude: *thinking...*", false)
-	end)
-
-	async.util.sleep(100) -- Small delay to ensure UI updates
-
-	-- Send message to Claude
-	local response = M.current_chat:send_message(M.chat_id, input_text)
-
-	vim.schedule(function()
-		if not response then
-			vim.notify("Error sending message: " .. tostring(response), vim.log.levels.ERROR)
-			return
-		end
-
-		local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
-		M.append_text("Claude: \n" .. response)
-	end)
-end)
-
----Start new conversation
-M.new_conversation = async.void(function()
-	if not M.session then
-		vim.notify("No active session", vim.log.levels.ERROR)
-		return
-	end
-
-	-- Clear message history
-	M.message_history = {}
-
-	-- Create new chat
-	M.current_chat = Chat.new(M.session)
-	M.chat_id = M.current_chat:create_chat()
-
-	if not M.chat_id then
-		vim.notify("Failed to create new chat conversation", vim.log.levels.ERROR)
-		return
-	end
-
-	-- Clear the messages window
-	if M.chat_window and M.chat_window.messages.bufnr then
-		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
-	end
-
-	vim.notify("Started new conversation", vim.log.levels.INFO)
-end)
-
----Close chat window
-function M.close_chat()
-	if
-		M.chat_window
-		and M.chat_window.messages.winid
-		and vim.api.nvim_get_current_win() == M.chat_window.messages.winid
-	then
-		M.saved_cursor_pos = vim.api.nvim_win_get_cursor(M.chat_window.messages.winid)
-	end
-	M.chat_window.layout:unmount()
-	M.chat_window = nil
-	M.is_visible = false
-end
-
-local function setup_input_keymaps(input_win)
-	input_win:map("n", "<Esc>", M.close_chat, { noremap = true })
-	input_win:map("n", "q", M.close_chat, { noremap = true })
-	input_win:map("n", "<C-g>", M.new_conversation, { noremap = true })
+local setup_input_keymaps = function(input_win)
+	input_win:map("n", "<Esc>", window_close, { noremap = true })
+	input_win:map("n", "q", window_close, { noremap = true })
+	input_win:map("n", "<C-g>", chat_new_conversation, { noremap = true })
 	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
 
 	local function send_input()
@@ -193,7 +209,7 @@ local function setup_input_keymaps(input_win)
 		local input_text = table.concat(lines, "\n")
 		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
 		async.run(function()
-			M.send_message(input_text)
+			chat_send_message(input_text)
 		end)
 	end
 
@@ -209,34 +225,15 @@ local function setup_input_keymaps(input_win)
 	end, { noremap = true })
 end
 
-local function setup_messages_keymaps(messages_win)
+local setup_messages_keymaps = function(messages_win)
 	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
-	messages_win:map("n", "<Esc>", M.close_chat, { noremap = true })
-	messages_win:map("n", "q", M.close_chat, { noremap = true })
-	messages_win:map("n", "<C-g>", M.new_conversation, { noremap = true })
-end
-
----@param session any Chat session
-function M.toggle_chat(session)
-	async.void(function()
-		M.session = session
-		if M.is_visible and M.chat_window then
-			return M.close_chat()
-		end
-
-		M.chat_window = create_chat_layout()
-		M.restore_messages()
-
-		setup_input_keymaps(M.chat_window.input)
-		setup_messages_keymaps(M.chat_window.messages)
-
-		M.chat_window.layout:mount()
-		M.is_visible = true
-	end)()
+	messages_win:map("n", "<Esc>", window_close, { noremap = true })
+	messages_win:map("n", "q", window_close, { noremap = true })
+	messages_win:map("n", "<C-g>", chat_new_conversation, { noremap = true })
 end
 
 ---Restore message history
-function M.restore_messages()
+local window_restore_messages = function()
 	if M.chat_window and M.chat_window.messages.bufnr then
 		for _, msg in ipairs(M.message_history) do
 			local lines = vim.split(msg, "\n")
@@ -254,20 +251,23 @@ function M.restore_messages()
 	end
 end
 
----@param text string Text to append
----@param save_history boolean? Save to history (default: true)
-function M.append_text(text, save_history)
-	save_history = save_history ~= false
-	if M.chat_window and M.chat_window.messages.bufnr then
-		local lines = vim.split(text, "\n")
-		if save_history then
-			table.insert(M.message_history, text)
+---@param session any Chat session
+M.window_toggle = function(session)
+	async.void(function()
+		M.session = session
+		if M.is_visible and M.chat_window then
+			return window_close()
 		end
-		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
-		-- Scroll to bottom
-		local line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-		vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { line_count, 0 })
-	end
+
+		M.chat_window = create_chat_layout()
+		window_restore_messages()
+
+		setup_input_keymaps(M.chat_window.input)
+		setup_messages_keymaps(M.chat_window.messages)
+
+		M.chat_window.layout:mount()
+		M.is_visible = true
+	end)()
 end
 
 return M
