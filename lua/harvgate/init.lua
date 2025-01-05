@@ -3,6 +3,7 @@
 ---@field organization_id? string Optional organization ID
 ---@field width? number Window width
 ---@field height? number Window height
+---@field keymaps? table Table Keybinding configurations
 
 local ui = require("harvgate.ui")
 local Session = require("harvgate.session")
@@ -18,6 +19,9 @@ local default_config = {
 	organization_id = nil,
 	width = nil,
 	height = nil,
+	keymaps = {
+		new_chat = "<C-g>",
+	},
 }
 
 local function setup_session()

@@ -230,9 +230,10 @@ local create_chat_layout = function()
 end
 
 local setup_input_keymaps = function(input_win)
+	local keymaps = M.config.keymaps or {}
 	input_win:map("n", "<Esc>", window_close, { noremap = true })
 	input_win:map("n", "q", window_close, { noremap = true })
-	input_win:map("n", "<C-g>", chat_new_conversation, { noremap = true })
+	input_win:map("n", keymaps.new_chat or "<C-g>", chat_new_conversation, { noremap = true })
 	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
 
 	local function send_input()
@@ -257,10 +258,11 @@ local setup_input_keymaps = function(input_win)
 end
 
 local setup_messages_keymaps = function(messages_win)
+	local keymaps = M.config.keymaps or {}
 	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
 	messages_win:map("n", "<Esc>", window_close, { noremap = true })
 	messages_win:map("n", "q", window_close, { noremap = true })
-	messages_win:map("n", "<C-g>", chat_new_conversation, { noremap = true })
+	messages_win:map("n", keymaps.new_chat or "<C-g>", chat_new_conversation, { noremap = true })
 end
 
 ---Restore message history
