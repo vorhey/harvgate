@@ -1,5 +1,5 @@
 ---@class Config
----@field cookie string Claude AI cookie for authentication
+---@field cookie? string Claude AI cookie for authentication, can be set with $CLAUDE_COOKIE
 ---@field organization_id? string Optional organization ID
 ---@field width? number Window width
 ---@field height? number Window height
