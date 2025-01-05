@@ -5,10 +5,10 @@
   },
   "workspace": {
     "library": [
-      "$VIMRUNTIME",
+      "$VIM/runtime/lua",
       "./lua",
-      "${3rd}/luv/library",
-      "${3rd}/plenary.nvim/lua"
+      "$XDG_DATA_HOME/nvim/lazy/plenary.nvim/lua",
+      "$XDG_DATA_HOME/nvim/lazy/nui.nvim/lua"
     ],
     "checkThirdParty": false
   },
