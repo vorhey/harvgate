@@ -4,6 +4,7 @@
 ---@field width? number Window width
 ---@field height? number Window height
 ---@field keymaps? table Table Keybinding configurations
+---@field highlights? table Table Highlight configurations
 
 local ui = require("harvgate.ui")
 local Session = require("harvgate.session")
@@ -21,6 +22,10 @@ local default_config = {
 	height = nil,
 	keymaps = {
 		new_chat = "<C-g>",
+	},
+	highlights = {
+		claude_label = { fg = "#89e162" },
+		user_label = { fg = "#eb94c6" },
 	},
 }
 

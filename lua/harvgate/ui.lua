@@ -19,8 +19,13 @@ M.input_history = {}
 M.saved_cursor_pos = nil
 M.cursor_autocmd = nil
 
-DEFAULT_WINDOW_WIDTH = 80
-DEFAULT_WINDOW_HEIGHT = 80
+local DEFAULT_WINDOW_WIDTH = 80
+local DEFAULT_WINDOW_HEIGHT = 80
+
+local function setup_highlights()
+	vim.api.nvim_set_hl(0, "ChatClaudeLabel", M.config.highlights.claude_label)
+	vim.api.nvim_set_hl(0, "ChatUserLabel", M.config.highlights.user_label)
+end
 
 ---@param text string Text to append
 ---@param save_history boolean? Save to history (default: true)
@@ -31,7 +36,17 @@ local window_append_text = function(text, save_history)
 		if save_history then
 			table.insert(M.message_history, text)
 		end
+		local start_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		local ns_id = vim.api.nvim_create_namespace("chat_highlights")
+		for i, line in ipairs(lines) do
+			local line_num = start_line + i - 1
+			if line:match("^Claude:") then
+				vim.api.nvim_buf_add_highlight(M.chat_window.messages.bufnr, ns_id, "ChatClaudeLabel", line_num, 0, 7)
+			elseif line:match("^You:") then
+				vim.api.nvim_buf_add_highlight(M.chat_window.messages.bufnr, ns_id, "ChatUserLabel", line_num, 0, 4)
+			end
+		end
 		-- Scroll to bottom
 		local line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
 		vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { line_count, 0 })
@@ -318,6 +333,7 @@ M.setup = function(config)
 	if M.config.height and (not utils.is_number(M.config.height) or M.config.height > 100 or M.config.height < 40) then
 		vim.notify("Invalid height value should be between 100 and 40, falling back to default", vim.log.levels.WARN)
 	end
+	setup_highlights()
 end
 
 return M
