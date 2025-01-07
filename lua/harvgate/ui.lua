@@ -134,8 +134,80 @@ local window_close = function()
 	M.is_visible = false
 end
 
+local create_split_layout = function()
+	local width = M.config.width or DEFAULT_WINDOW_WIDTH
+	vim.cmd(string.format("vsplit"))
+	vim.cmd(string.format("vertical resize %d", width))
+	local messages_win = vim.api.nvim_get_current_win()
+	local messages_buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_win_set_buf(messages_win, messages_buf)
+
+	-- Set buffer options for messages
+	vim.api.nvim_set_option_value("filetype", "markdown", { buf = messages_buf })
+	vim.api.nvim_set_option_value("modifiable", true, { buf = messages_buf })
+	vim.api.nvim_set_option_value("wrap", true, { win = messages_win })
+	vim.api.nvim_set_option_value("cursorline", true, { win = messages_win })
+	vim.api.nvim_set_option_value("number", false, { win = messages_win })
+	vim.api.nvim_set_option_value("relativenumber", false, { win = messages_win })
+
+	vim.cmd("split")
+	local input_win = vim.api.nvim_get_current_win()
+	local input_buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_win_set_buf(input_win, input_buf)
+	vim.cmd("resize 10")
+
+	-- Set window options for input
+	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
+	vim.api.nvim_set_option_value("number", false, { win = input_win })
+	vim.api.nvim_set_option_value("relativenumber", false, { win = input_win })
+	vim.api.nvim_set_option_value("winbar", " Message (Ctrl+S to send) ", { win = input_win })
+
+	-- Create wrapper objects that match nui.popup interface
+	local messages = {
+		bufnr = messages_buf,
+		winid = messages_win,
+		map = function(_, mode, key, fn, opts)
+			vim.keymap.set(mode, key, fn, vim.tbl_extend("force", opts or {}, { buffer = messages_buf }))
+		end,
+	}
+
+	local input = {
+		bufnr = input_buf,
+		winid = input_win,
+		map = function(_, mode, key, fn, opts)
+			vim.keymap.set(mode, key, fn, vim.tbl_extend("force", opts or {}, { buffer = input_buf }))
+		end,
+	}
+
+	return {
+		messages = messages,
+		input = input,
+		layout = {
+			unmount = function()
+				if vim.api.nvim_win_is_valid(input_win) then
+					vim.api.nvim_win_close(input_win, true)
+				end
+				if vim.api.nvim_win_is_valid(messages_win) then
+					vim.api.nvim_win_close(messages_win, true)
+				end
+			end,
+			mount = function() end,
+		},
+		focus_input = function()
+			if vim.api.nvim_win_is_valid(input_win) then
+				vim.api.nvim_set_current_win(input_win)
+			end
+		end,
+		focus_messages = function()
+			if vim.api.nvim_win_is_valid(messages_win) then
+				vim.api.nvim_set_current_win(messages_win)
+			end
+		end,
+	}
+end
+
 -- Creates the chat window layout (messages and input)
-local create_chat_layout = function()
+local create_window_layout = function()
 	-- Messages window
 	local messages_popup = Popup({
 		enter = false,
@@ -313,9 +385,13 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
-		M.chat_window = create_chat_layout()
-		window_restore_messages()
+		if M.config.layout_type == "split" then
+			M.chat_window = create_split_layout()
+		else
+			M.chat_window = create_window_layout()
+		end
 
+		window_restore_messages()
 		setup_input_keymaps(M.chat_window.input)
 		setup_messages_keymaps(M.chat_window.messages)
 
