@@ -318,11 +318,14 @@ end
 
 local setup_input_keymaps = function(input_win)
 	local keymaps = M.config.keymaps or {}
+	local new_chat = async.void(function()
+		chat_new_conversation()
+	end)
 	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
 	input_win:map("n", "<Esc>", window_close, { noremap = true })
 	input_win:map("n", "q", window_close, { noremap = true })
-	input_win:map("n", keymaps.new_chat or "<C-g>", chat_new_conversation, { noremap = true })
-	input_win:map("i", keymaps.new_chat or "<C-g>", chat_new_conversation, { noremap = true })
+	input_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
+	input_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
 
 	local function send_input()
 		local lines = vim.api.nvim_buf_get_lines(input_win.bufnr, 0, -1, false)
@@ -347,11 +350,14 @@ end
 
 local setup_messages_keymaps = function(messages_win)
 	local keymaps = M.config.keymaps or {}
+	local new_chat = async.void(function()
+		chat_new_conversation()
+	end)
 	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
 	messages_win:map("n", "<Esc>", window_close, { noremap = true })
 	messages_win:map("n", "q", window_close, { noremap = true })
-	messages_win:map("n", keymaps.new_chat or "<C-g>", chat_new_conversation, { noremap = true })
-	messages_win:map("i", keymaps.new_chat or "<C-g>", chat_new_conversation, { noremap = true })
+	messages_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
+	messages_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
 end
 
 ---Restore message history
