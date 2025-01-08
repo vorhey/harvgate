@@ -43,6 +43,7 @@ Chat.create_chat = async.wrap(function(self, cb)
 	local payload = {
 		name = "",
 		uuid = utils.uuidv4(),
+		model = self.session.model,
 		message = {
 			content = "Please give this chat a title based on my first message.",
 			attachments = {},
@@ -110,7 +111,7 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		files = {},
 		prompt = prompt,
 		timezone = "UTC",
-		model = nil,
+		model = self.session.model,
 	}
 	local builder = RequestBuilder.new(self.session)
 	local config = builder:for_message_sending(chat_id):with_body(payload):with_timeout():build()

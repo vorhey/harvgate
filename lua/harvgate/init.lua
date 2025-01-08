@@ -1,6 +1,7 @@
 ---@class Config
 ---@field cookie? string Claude AI cookie for authentication, can be set with $CLAUDE_COOKIE
 ---@field organization_id? string Optional organization ID
+---@field model? string Optional model ID
 ---@field width? number Window width
 ---@field height? number Window height
 ---@field keymaps? table Table Keybinding configurations
@@ -19,6 +20,7 @@ local M = {}
 local default_config = {
 	cookie = os.getenv("CLAUDE_COOKIE"),
 	organization_id = nil,
+	model = nil,
 	width = nil,
 	height = nil,
 	keymaps = {
@@ -32,7 +34,7 @@ local default_config = {
 }
 
 local function setup_session()
-	return Session.new(M.config.cookie, M.config.organization_id)
+	return Session.new(M.config.cookie, M.config.organization_id, M.config.model)
 end
 
 ---@type Config

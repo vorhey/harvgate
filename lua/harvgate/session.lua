@@ -5,8 +5,8 @@ local strategies = require("harvgate.strategies")
 ---@class Session
 ---@field cookie string
 ---@field user_agent string
+---@field model string | nil
 ---@field organization_id string
----@field timeout number
 local M = {}
 M.__index = M
 
@@ -39,12 +39,13 @@ end
 ---@param cookie string
 ---@param organization_id string | nil
 ---@return Session
-function M.new(cookie, organization_id)
+function M.new(cookie, organization_id, model)
 	assert(cookie and #cookie > 0, "Cookie is required and must be a non-empty string.")
 
 	local self = setmetatable({
 		cookie = cookie,
 		user_agent = DEFAULT_USER_AGENT,
+		model = model,
 	}, M)
 
 	if not organization_id then
@@ -54,6 +55,9 @@ function M.new(cookie, organization_id)
 				error("No organization ID returned")
 			end
 			self.organization_id = organization_uuid
+			if self.model then
+				self:set_model(organization_uuid, self.model)
+			end
 		end)
 	else
 		self.organization_id = organization_id
@@ -76,6 +80,27 @@ function M:get_organization_id()
 	end
 
 	error(string.format("Cannot retrieve Organization ID!\n%s", response.body))
+end
+
+function M:set_model(organization_id, model_id)
+	local url = string.format("%s/api/organizations/%s/model_configs/%s", BASE_URL, organization_id, model_id)
+	curl.get({
+		url = url,
+		headers = {
+			["Host"] = "claude.ai",
+			["User-Agent"] = self.user_agent,
+			["Accept-Language"] = "en-US,en;q=0.5",
+			["Accept-Encoding"] = "gzip, deflate, br",
+			["Origin"] = BASE_URL,
+			["DNT"] = "1",
+			["Sec-Fetch-Dest"] = "empty",
+			["Sec-Fetch-Mode"] = "cors",
+			["Sec-Fetch-Site"] = "same-origin",
+			["Connection"] = "keep-alive",
+			["Cookie"] = self.cookie,
+			["TE"] = "trailers",
+		},
+	})
 end
 
 return M
