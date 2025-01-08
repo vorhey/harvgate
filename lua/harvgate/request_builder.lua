@@ -4,7 +4,6 @@
 ---@field headers table<string, string>
 ---@field url string
 ---@field body? string
----@field timeout? number
 
 ---@class RequestBuilder
 ---@field private session Session
@@ -78,12 +77,6 @@ function RequestBuilder:with_body(payload)
 	local encoded_payload = vim.json.encode(payload)
 	self.config.body = encoded_payload
 	self.config.headers["Content-Length"] = tostring(#encoded_payload)
-	return self
-end
-
----@return RequestBuilder
-function RequestBuilder:with_timeout()
-	self.config.timeout = self.session.timeout
 	return self
 end
 

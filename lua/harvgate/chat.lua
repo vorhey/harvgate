@@ -51,7 +51,7 @@ Chat.create_chat = async.wrap(function(self, cb)
 		},
 	}
 	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_chat_creation():with_body(payload):with_timeout():build()
+	local config = builder:for_chat_creation():with_body(payload):build()
 
 	--- Send a curl request with the specified options
 	--- @param options table Options for the curl request
@@ -62,7 +62,6 @@ Chat.create_chat = async.wrap(function(self, cb)
 				url = config.url,
 				headers = config.headers,
 				body = config.body,
-				timeout = config.timeout,
 				callback = vim.schedule_wrap(function(response)
 					inner_cb(response)
 				end),
@@ -114,7 +113,7 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		model = self.session.model,
 	}
 	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_message_sending(chat_id):with_body(payload):with_timeout():build()
+	local config = builder:for_message_sending(chat_id):with_body(payload):build()
 
 	--- Send a curl request with the specified options
 	--- @param options table Options for the curl request
@@ -124,7 +123,6 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 			url = config.url,
 			headers = config.headers,
 			body = config.body,
-			timeout = config.timeout,
 			callback = vim.schedule_wrap(function(response)
 				inner_cb(process_stream_response(response))
 			end),
@@ -149,7 +147,7 @@ end, 4)
 
 Chat.list_chats = async.wrap(function(self, cb)
 	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_chat_listing().with_timeout().build()
+	local config = builder:for_chat_listing().build()
 
 	--- Send a curl request with the specified options
 	--- @param options table Options for the curl request
@@ -160,7 +158,6 @@ Chat.list_chats = async.wrap(function(self, cb)
 				url = config.url,
 				headers = config.headers,
 				body = config.body,
-				timeout = config.timeout,
 				callback = vim.schedule_wrap(function(response)
 					inner_cb(response)
 				end),
