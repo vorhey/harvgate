@@ -37,8 +37,16 @@ local window_append_text = function(text, save_history)
 		if save_history then
 			table.insert(M.message_history, text)
 		end
-		local start_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		local buf_line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+		local is_first_message = buf_line_count == 1
+			and vim.api.nvim_buf_get_lines(M.chat_window.messages.bufnr, 0, 1, false)[1] == ""
+		local start_line = is_first_message and 0 or buf_line_count
+		-- If this is the first message and buffer has only an empty line
+		if is_first_message then
+			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, 1, false, lines)
+		else
+			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+		end
 		for i, line in ipairs(lines) do
 			local line_num = start_line + i - 1
 			if line:match("^Claude:") then
@@ -97,7 +105,7 @@ local chat_send_message = async.void(function(input_text)
 
 		local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
-		window_append_text("Claude:\n" .. response)
+		window_append_text("Claude:" .. response)
 	end)
 end)
 
