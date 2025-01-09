@@ -21,6 +21,7 @@ M.cursor_autocmd = nil
 
 local DEFAULT_WINDOW_WIDTH = 80
 local DEFAULT_WINDOW_HEIGHT = 80
+local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 
 local function setup_highlights()
 	vim.api.nvim_set_hl(0, "ChatClaudeLabel", M.config.highlights.claude_label)
@@ -38,13 +39,26 @@ local window_append_text = function(text, save_history)
 		end
 		local start_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
-		local ns_id = vim.api.nvim_create_namespace("chat_highlights")
 		for i, line in ipairs(lines) do
 			local line_num = start_line + i - 1
 			if line:match("^Claude:") then
-				vim.api.nvim_buf_add_highlight(M.chat_window.messages.bufnr, ns_id, "ChatClaudeLabel", line_num, 0, 7)
+				vim.api.nvim_buf_add_highlight(
+					M.chat_window.messages.bufnr,
+					HIGHLIGHT_NS,
+					"ChatClaudeLabel",
+					line_num,
+					0,
+					7
+				)
 			elseif line:match("^You:") then
-				vim.api.nvim_buf_add_highlight(M.chat_window.messages.bufnr, ns_id, "ChatUserLabel", line_num, 0, 4)
+				vim.api.nvim_buf_add_highlight(
+					M.chat_window.messages.bufnr,
+					HIGHLIGHT_NS,
+					"ChatUserLabel",
+					line_num,
+					0,
+					4
+				)
 			end
 		end
 		-- Scroll to bottom
@@ -67,7 +81,7 @@ local chat_send_message = async.void(function(input_text)
 	vim.schedule(function()
 		local trimmed_message = utils.trim_message(input_text)
 		window_append_text("\nYou: " .. trimmed_message .. "\n")
-		window_append_text("\nClaude: *thinking...*", false)
+		window_append_text("Claude: *thinking...*", false)
 	end)
 
 	async.util.sleep(100) -- Small delay to ensure UI updates
@@ -83,7 +97,7 @@ local chat_send_message = async.void(function(input_text)
 
 		local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
-		window_append_text("Claude: \n" .. response)
+		window_append_text("Claude:\n" .. response)
 	end)
 end)
 
@@ -362,24 +376,56 @@ end
 
 ---Restore message history
 local window_restore_messages = function()
-	if M.chat_window and M.chat_window.messages.bufnr then
-		for _, msg in ipairs(M.message_history) do
-			local lines = vim.split(msg, "\n")
-			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+	if not (M.chat_window and M.chat_window.messages.bufnr) then
+		return
+	end
+
+	local bufnr = M.chat_window.messages.bufnr
+	local all_lines = {}
+	local highlights = {}
+
+	-- Collect all lines and highlights in a single pass
+	for _, msg in ipairs(M.message_history) do
+		local start_line = #all_lines
+		local lines = vim.split(msg, "\n")
+
+		for i, line in ipairs(lines) do
+			table.insert(all_lines, line)
+			local line_num = start_line + i - 1
+
+			if line:match("^Claude:") then
+				table.insert(highlights, { line_num, "ChatClaudeLabel", 0, 7 })
+			elseif line:match("^You:") then
+				table.insert(highlights, { line_num, "ChatUserLabel", 0, 4 })
+			end
 		end
-		if #M.input_history > 0 then
-			local last_input = M.input_history[#M.input_history]
-			vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, last_input)
-		end
-		if M.saved_cursor_pos then
-			vim.schedule(function()
-				if pcall(vim.api.nvim_win_set_cursor, M.chat_window.messages.winid, M.saved_cursor_pos) then
-					local win_height = vim.api.nvim_win_get_height(M.chat_window.messages.winid)
-					local cursor_line = M.saved_cursor_pos[1]
-					vim.fn.winrestview({ topline = math.max(1, cursor_line - math.floor(win_height / 2)) })
-				end
-			end)
-		end
+	end
+
+	-- Set all lines at once
+	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, all_lines)
+
+	-- Apply highlights in batch
+	for _, hl in ipairs(highlights) do
+		vim.api.nvim_buf_add_highlight(bufnr, HIGHLIGHT_NS, hl[2], hl[1], hl[3], hl[4])
+	end
+
+	-- Restore input history if exists
+	if #M.input_history > 0 then
+		vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, M.input_history[#M.input_history])
+	end
+
+	-- Restore cursor position
+	if M.saved_cursor_pos then
+		vim.schedule(function()
+			local win = M.chat_window.messages.winid
+			if pcall(vim.api.nvim_win_set_cursor, win, M.saved_cursor_pos) then
+				local win_height = vim.api.nvim_win_get_height(win)
+				local cursor_line = M.saved_cursor_pos[1]
+				vim.fn.winrestview({
+					topline = math.max(1, cursor_line - math.floor(win_height / 2)),
+				})
+			end
+		end)
 	end
 end
 
