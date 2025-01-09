@@ -80,6 +80,20 @@ function RequestBuilder:with_body(payload)
 	return self
 end
 
+---@param chat_id string
+---@return RequestBuilder
+function RequestBuilder:for_chat_renaming(chat_id)
+	self.config.headers["Accept"] = "*/*"
+	self.config.headers["Content-Type"] = "application/json"
+	self.config.url = string.format(
+		"%s/api/organizations/%s/chat_conversations/%s/title",
+		BASE_URL,
+		self.session.organization_id,
+		chat_id
+	)
+	return self
+end
+
 ---@return RequestConfig
 function RequestBuilder:build()
 	return self.config

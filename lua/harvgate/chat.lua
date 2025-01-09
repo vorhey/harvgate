@@ -33,7 +33,7 @@ end
 ---@return Chat
 function Chat.new(session)
 	assert(type(session) == "table" and session.cookie and session.organization_id, "Invalid session object")
-	return setmetatable({ session = session }, Chat)
+	return setmetatable({ session = session, named_chats = {} }, Chat)
 end
 
 --- Creates a new chat conversation.
@@ -45,7 +45,6 @@ Chat.create_chat = async.wrap(function(self, cb)
 		uuid = utils.uuidv4(),
 		model = self.session.model,
 		message = {
-			content = "Please give this chat a title based on my first message.",
 			attachments = {},
 			files = {},
 		},
@@ -124,6 +123,12 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 			headers = config.headers,
 			body = config.body,
 			callback = vim.schedule_wrap(function(response)
+				if not self.named_chats[chat_id] then
+					async.run(function()
+						self:rename_chat(chat_id, prompt)
+						self.named_chats[chat_id] = true
+					end)
+				end
 				inner_cb(process_stream_response(response))
 			end),
 		}, options))
@@ -147,17 +152,16 @@ end, 4)
 
 Chat.list_chats = async.wrap(function(self, cb)
 	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_chat_listing().build()
+	local config = builder:for_chat_listing():build()
 
 	--- Send a curl request with the specified options
 	--- @param options table Options for the curl request
 	--- @return table|nil response Response table or nil if failed
 	local function send_request(options)
 		return async.wrap(function(inner_cb)
-			curl.post(vim.tbl_extend("force", {
+			curl.get(vim.tbl_extend("force", {
 				url = config.url,
 				headers = config.headers,
-				body = config.body,
 				callback = vim.schedule_wrap(function(response)
 					inner_cb(response)
 				end),
@@ -181,12 +185,13 @@ Chat.list_chats = async.wrap(function(self, cb)
 		return
 	end
 
-	if response.status ~= 201 then
+	if response.status ~= 200 then
 		cb(nil, string.format("Request failed with status: %d", response.status))
 		return
 	end
 
 	local ok, decoded_json = pcall(vim.json.decode, response.body)
+
 	if not ok then
 		cb(nil, "Failed to decode response JSON")
 		return
@@ -194,5 +199,39 @@ Chat.list_chats = async.wrap(function(self, cb)
 
 	cb(decoded_json, nil)
 end, 2)
+
+Chat.list_unnamed_chats = async.wrap(function(self, cb)
+	local chats, err = self:list_chats()
+	if err then
+		cb(nil, err)
+		return
+	end
+
+	local unnamed = vim.tbl_filter(function(chat)
+		return chat.name == ""
+	end, chats)
+
+	cb(unnamed)
+end, 2)
+
+Chat.rename_chat = function(self, chat_id, first_message)
+	local payload = {
+		message_content = "Message 1:" .. first_message,
+		recent_titles = {},
+	}
+	local builder = RequestBuilder.new(self.session)
+	local config = builder:for_chat_renaming(chat_id):with_body(payload):build()
+
+	return async.wrap(function(cb)
+		curl.post({
+			url = config.url,
+			headers = config.headers,
+			body = config.body,
+			callback = vim.schedule_wrap(function(response)
+				cb(response)
+			end),
+		})
+	end, 1)()
+end
 
 return Chat
