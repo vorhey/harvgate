@@ -2,10 +2,10 @@ local M = {}
 
 function M.check()
 	local health = vim.health or require("health")
-	local start = health.start or health.report_start
-	local ok = health.ok or health.report_ok
-	local warn = health.warn or health.report_warn
-	local error = health.error or health.report_error
+	local start = health.start
+	local ok = health.ok
+	local warn = health.warn
+	local error = health.error
 
 	start("harvgate.nvim")
 
