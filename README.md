@@ -22,6 +22,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
  'vorhey/harvgate',
  dependencies = {
   'nvim-lua/plenary.nvim',
+  'nvim-tree/nvim-web-devicons',
  }
 }
 ```

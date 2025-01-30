@@ -18,7 +18,7 @@ M.source_bufnr = nil
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 local icons = {
 	chat = "󰭹",
-	file = "",
+	default_file = "",
 }
 
 local function setup_highlights()
@@ -78,6 +78,16 @@ local get_file = function()
 		return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr))
 	end
 	return nil
+end
+
+local function get_file_icon(filename)
+	if not filename then
+		return icons.default_file
+	end
+
+	local extension = vim.fn.fnamemodify(filename, ":e")
+	local file_icon, _ = require("nvim-web-devicons").get_icon(filename, extension, { default = true })
+	return file_icon or icons.default_file
 end
 
 ---@param input_text string Message to send
@@ -171,7 +181,9 @@ local create_split_layout = function()
 
 	-- Add current file to messages window title
 	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
-	local winbar_text = string.format(" %s Chat - %s %s ", icons.chat, icons.file, current_file)
+	local file_name = vim.fn.fnamemodify(current_file, ":t")
+	local file_icon = get_file_icon(current_file)
+	local winbar_text = string.format(" %s Chat [%s %s]", icons.chat, file_icon, file_name)
 	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
 
 	-- Set buffer options for messages
@@ -185,7 +197,6 @@ local create_split_layout = function()
 	vim.cmd("split")
 	local input_win = vim.api.nvim_get_current_win()
 	local input_buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_name(input_buf, "claude-input") -- Add this line
 	vim.api.nvim_win_set_buf(input_win, input_buf)
 	vim.cmd("resize 10")
 
