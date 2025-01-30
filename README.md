@@ -3,9 +3,12 @@
 A Neovim plugin for chatting with Claude directly in your editor using your claude web subscription cookie for authentication.
 
 ## Features
-- Chat with Claude
-- Authenticate using your anthropic claude session browser cookie (no API key needed)
-- Syntax highlighted responses
+- Split window interface for chatting with Claude
+- Markdown syntax highlighting for responses
+- Conversation history support
+- Easy navigation between input and message windows
+- Quick conversation reset
+- Session persistence using browser cookie authentication
 
 ## Requirements
 - Neovim >= 0.8.0
@@ -19,8 +22,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
  'vorhey/harvgate',
  dependencies = {
   'nvim-lua/plenary.nvim',
-  'MunifTanjim/nui.nvim',
- },
+ }
 }
 ```
 
@@ -32,8 +34,28 @@ Harvgate will attempt to load your cookie from the environment variable `CLAUDE_
 ```lua
 require('harvgate').setup({
   cookie = "your_claude_cookie", -- Required: Cookie from browser session, e.g. sessionKey=sk-ant-sidxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  width = 80, -- Optional: Width of chat window (default: 60)
+    keymaps = { -- Optional: Custom keymaps
+        new_chat = "<C-g>",  -- Start new conversation
+    },
+    highlights = { -- Optional: Custom highlights
+        claude_label = { fg = "#89e162" },
+        user_label = { fg = "#eb94c6" },
+    },
 })
 ```
+## Usage
+
+| Keybinding | Action | Mode |
+|-----------|---------|------|
+| `:HarvgateChat` | Toggle chat window | Command |
+| `<C-s>` | Send message | Normal, Insert |
+| `<C-k>` | Focus messages window | Normal |
+| `<C-j>` | Focus input window | Normal |
+| `<C-g>` | Start new conversation | Normal, Insert |
+| `q` or `<Esc>` | Close chat window | Normal |
+
+
 ## Contributing
 
 ### Commit Convention
@@ -116,4 +138,3 @@ The included Makefile provides these targets:
 - `watch`: Watch for file changes and run tests automatically
 - `clean`: Clean up temporary files
 - Default target is set to `test`
-
