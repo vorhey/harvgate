@@ -13,8 +13,13 @@ M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
 M.input_history = {}
+M.source_bufnr = nil
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
+local icons = {
+	chat = "󰭹",
+	file = "",
+}
 
 local function setup_highlights()
 	vim.api.nvim_set_hl(0, "ChatClaudeLabel", M.config.highlights.claude_label)
@@ -68,10 +73,18 @@ local window_append_text = function(text, save_history)
 	end
 end
 
+local get_file = function()
+	if M.source_bufnr and vim.api.nvim_win_is_valid(M.source_bufnr) then
+		return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr))
+	end
+	return nil
+end
+
 ---@param input_text string Message to send
 local chat_send_message = async.void(function(input_text)
 	if not M.current_chat then
-		M.current_chat = Chat.new(M.session)
+		local current_file = get_file()
+		M.current_chat = Chat.new(M.session, current_file)
 		M.chat_id = M.current_chat:create_chat()
 		if not M.chat_id then
 			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
@@ -113,7 +126,8 @@ local chat_new_conversation = async.void(function()
 	M.message_history = {}
 
 	-- Create new chat
-	M.current_chat = Chat.new(M.session)
+	local current_file = get_file()
+	M.current_chat = Chat.new(M.session, current_file)
 	M.chat_id = M.current_chat:create_chat()
 
 	if not M.chat_id then
@@ -129,20 +143,36 @@ local chat_new_conversation = async.void(function()
 	vim.notify("Started new conversation", vim.log.levels.INFO)
 end)
 
+local update_winbar = function()
+	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
+		local current_file =
+			vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
+		local winbar_text = string.format(" %s Chat  %s %s ", icons.chat, icons.file, current_file)
+		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+	end
+end
+
 ---Close chat window
 local window_close = function()
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
+	M.source_bufnr = nil
 end
 
 local create_split_layout = function()
+	M.source_bufnr = vim.api.nvim_get_current_win()
 	local width = M.config.width or 60
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
 	local messages_win = vim.api.nvim_get_current_win()
 	local messages_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(messages_win, messages_buf)
+
+	-- Add current file to messages window title
+	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
+	local winbar_text = string.format(" %s Chat - %s %s ", icons.chat, icons.file, current_file)
+	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
 
 	-- Set buffer options for messages
 	vim.api.nvim_set_option_value("filetype", "markdown", { buf = messages_buf })
@@ -155,6 +185,7 @@ local create_split_layout = function()
 	vim.cmd("split")
 	local input_win = vim.api.nvim_get_current_win()
 	local input_buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_name(input_buf, "claude-input") -- Add this line
 	vim.api.nvim_win_set_buf(input_win, input_buf)
 	vim.cmd("resize 10")
 
@@ -162,7 +193,8 @@ local create_split_layout = function()
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
 	vim.api.nvim_set_option_value("number", false, { win = input_win })
 	vim.api.nvim_set_option_value("relativenumber", false, { win = input_win })
-	vim.api.nvim_set_option_value("winbar", " Message (Ctrl+S to send) ", { win = input_win })
+	local input_winbar = "✦ Message Input [Ctrl+S to send]"
+	vim.api.nvim_set_option_value("winbar", input_winbar, { win = input_win })
 
 	-- Create wrapper objects that match nui.popup interface
 	local messages = {

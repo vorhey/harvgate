@@ -30,10 +30,16 @@ local function process_stream_response(response)
 end
 
 ---@param session Session
+---@param file_path string|nil
 ---@return Chat
-function Chat.new(session)
+function Chat.new(session, file_path)
 	assert(type(session) == "table" and session.cookie and session.organization_id, "Invalid session object")
-	return setmetatable({ session = session, named_chats = {} }, Chat)
+	return setmetatable({
+		session = session,
+		named_chats = {},
+		current_file = file_path,
+		has_sent_file = false,
+	}, Chat)
 end
 
 --- Creates a new chat conversation.
@@ -111,6 +117,21 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		timezone = "UTC",
 		model = self.session.model,
 	}
+
+	-- Attach file if not exists
+	if self.current_file and not self.has_sent_file then
+		local file_content = vim.fn.readfile(self.current_file)
+		if file_content then
+			table.insert(payload.attachments, {
+				file_name = vim.fn.fnamemodify(self.current_file, ":t"),
+				file_type = "",
+				file_size = #file_content,
+				extracted_content = table.concat(file_content, "\n"),
+			})
+			self.has_sent_file = true
+		end
+	end
+
 	local builder = RequestBuilder.new(self.session)
 	local config = builder:for_message_sending(chat_id):with_body(payload):build()
 
