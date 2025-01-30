@@ -3,17 +3,13 @@
 ---@field organization_id? string Optional organization ID
 ---@field model? string Optional model ID
 ---@field width? number Window width
----@field height? number Window height
 ---@field keymaps? table Table Keybinding configurations
 ---@field highlights? table Table Highlight configurations
----@field layout_type? string Layout type, can be "float" or "split"
-
 local ui = require("harvgate.ui")
 local Session = require("harvgate.session")
 
 ---@type Session|nil
 local session = nil
-
 local M = {}
 
 -- Default configuration
@@ -22,7 +18,6 @@ local default_config = {
 	organization_id = nil,
 	model = nil,
 	width = nil,
-	height = nil,
 	keymaps = {
 		new_chat = "<C-g>",
 	},
@@ -30,7 +25,6 @@ local default_config = {
 		claude_label = { fg = "#89e162" },
 		user_label = { fg = "#eb94c6" },
 	},
-	layout_type = "split",
 }
 
 local function setup_session()
@@ -54,7 +48,6 @@ function M.setup(opts)
 	end
 
 	ui.setup(M.config)
-
 	-- Create user commands
 	vim.api.nvim_create_user_command("HarvgateChat", M.toggle, {})
 end
@@ -64,12 +57,10 @@ function M.toggle()
 	if not session then
 		session = setup_session()
 	end
-
 	if not session then
 		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
 		return
 	end
-
 	ui.window_toggle(session)
 end
 

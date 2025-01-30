@@ -1,9 +1,6 @@
-local Popup = require("nui.popup")
-local Layout = require("nui.layout")
 local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
-local event = require("nui.utils.autocmd").event
 
 local M = {}
 
@@ -16,11 +13,7 @@ M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
 M.input_history = {}
-M.saved_cursor_pos = nil
-M.cursor_autocmd = nil
 
-local DEFAULT_WINDOW_WIDTH = 80
-local DEFAULT_WINDOW_HEIGHT = 80
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 
 local function setup_highlights()
@@ -138,26 +131,13 @@ end)
 
 ---Close chat window
 local window_close = function()
-	if M.cursor_autocmd then
-		vim.api.nvim_del_autocmd(M.cursor_autocmd)
-		M.cursor_autocmd = nil
-	end
-
-	if
-		M.chat_window
-		and M.chat_window.messages.winid
-		and vim.api.nvim_get_current_win() == M.chat_window.messages.winid
-	then
-		M.saved_cursor_pos = vim.api.nvim_win_get_cursor(M.chat_window.messages.winid)
-	end
-
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
 end
 
 local create_split_layout = function()
-	local width = M.config.width or DEFAULT_WINDOW_WIDTH
+	local width = M.config.width or 60
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
 	local messages_win = vim.api.nvim_get_current_win()
@@ -225,116 +205,6 @@ local create_split_layout = function()
 				vim.api.nvim_set_current_win(messages_win)
 			end
 		end,
-	}
-end
-
--- Creates the chat window layout (messages and input)
-local create_window_layout = function()
-	-- Messages window
-	local messages_popup = Popup({
-		enter = false,
-		focusable = true,
-		border = {
-			style = "rounded",
-			text = {
-				top = " Claude Chat ",
-				top_align = "center",
-			},
-		},
-		buf_options = {
-			modifiable = true,
-			readonly = false,
-		},
-		win_options = {
-			wrap = true,
-			cursorline = true,
-		},
-		relative = "editor",
-	})
-	vim.schedule(function()
-		if messages_popup.bufnr then
-			vim.api.nvim_set_option_value("filetype", "markdown", { buf = messages_popup.bufnr })
-			vim.api.nvim_set_option_value("syntax", "markdown", { buf = messages_popup.bufnr })
-		end
-	end)
-	-- Input window
-	local input_popup = Popup({
-		enter = true,
-		focusable = true,
-		border = {
-			style = "rounded",
-			text = {
-				top = " Message (Ctrl+S to send) ",
-				top_align = "left",
-			},
-		},
-		buf_options = {
-			modifiable = true,
-			readonly = false,
-		},
-		win_options = {
-			wrap = true,
-		},
-		relative = "editor",
-	})
-
-	-- Create layout
-	local layout = Layout(
-		{
-			position = "50%", -- Position in the middle of the editor
-			relative = "editor",
-			size = {
-				width = string.format("%d%%", M.config.width or DEFAULT_WINDOW_WIDTH),
-				height = string.format("%d%%", M.config.height or DEFAULT_WINDOW_HEIGHT),
-			},
-		},
-		Layout.Box({
-			Layout.Box(messages_popup, { size = "70%" }),
-			Layout.Box(input_popup, { size = "30%", grow = 1 }),
-		}, { dir = "col", size = "100" })
-	)
-
-	local function is_cursor_in_layout()
-		local current_win = vim.api.nvim_get_current_win()
-		return current_win == messages_popup.winid or current_win == input_popup.winid
-	end
-
-	M.cursor_autocmd = vim.api.nvim_create_autocmd("CursorMoved", {
-		callback = function()
-			if M.is_visible and not is_cursor_in_layout() then
-				window_close()
-			end
-		end,
-	})
-
-	input_popup:on({ event.BufLeave }, function()
-		local lines = vim.api.nvim_buf_get_lines(input_popup.bufnr, 0, -1, false)
-		table.insert(M.input_history, lines)
-	end)
-
-	-- Functions for focusing the input and message windows
-	local function focus_input()
-		if input_popup and input_popup.winid and vim.api.nvim_win_is_valid(input_popup.winid) then
-			vim.schedule(function()
-				vim.api.nvim_set_current_win(input_popup.winid)
-			end)
-		end
-	end
-
-	local function focus_messages()
-		if messages_popup and messages_popup.winid and vim.api.nvim_win_is_valid(messages_popup.winid) then
-			vim.schedule(function()
-				vim.api.nvim_set_current_win(messages_popup.winid)
-			end)
-		end
-	end
-
-	return {
-		layout = layout,
-		messages = messages_popup,
-		input = input_popup,
-		focus_input = focus_input,
-		focus_messages = focus_messages,
 	}
 end
 
@@ -421,20 +291,6 @@ local window_restore_messages = function()
 	if #M.input_history > 0 then
 		vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, M.input_history[#M.input_history])
 	end
-
-	-- Restore cursor position
-	if M.saved_cursor_pos then
-		vim.schedule(function()
-			local win = M.chat_window.messages.winid
-			if pcall(vim.api.nvim_win_set_cursor, win, M.saved_cursor_pos) then
-				local win_height = vim.api.nvim_win_get_height(win)
-				local cursor_line = M.saved_cursor_pos[1]
-				vim.fn.winrestview({
-					topline = math.max(1, cursor_line - math.floor(win_height / 2)),
-				})
-			end
-		end)
-	end
 end
 
 ---@param session any Chat session
@@ -445,12 +301,7 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
-		if M.config.layout_type == "split" then
-			M.chat_window = create_split_layout()
-		else
-			M.chat_window = create_window_layout()
-		end
-
+		M.chat_window = create_split_layout()
 		window_restore_messages()
 		setup_input_keymaps(M.chat_window.input)
 		setup_messages_keymaps(M.chat_window.messages)
@@ -463,11 +314,8 @@ end
 ---@param config Config
 M.setup = function(config)
 	M.config = config
-	if M.config.width and (not utils.is_number(M.config.width) or M.config.width > 100 or M.config.width < 40) then
-		vim.notify("Invalid width value should be between 100 and 40, falling back to default", vim.log.levels.WARN)
-	end
-	if M.config.height and (not utils.is_number(M.config.height) or M.config.height > 100 or M.config.height < 40) then
-		vim.notify("Invalid height value should be between 100 and 40, falling back to default", vim.log.levels.WARN)
+	if M.config.width and (not utils.is_number(M.config.width) or M.config.width < 40) then
+		vim.notify("Invalid width value should be at least 40, falling back to default", vim.log.levels.WARN)
 	end
 	setup_highlights()
 end
