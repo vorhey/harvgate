@@ -13,7 +13,7 @@ M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
 M.input_history = {}
-M.source_bufnr = nil
+M.source_buf = nil
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 local icons = {
@@ -74,8 +74,8 @@ local window_append_text = function(text, save_history)
 end
 
 local get_file = function()
-	if M.source_bufnr and vim.api.nvim_win_is_valid(M.source_bufnr) then
-		return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr))
+	if M.source_buf and vim.api.nvim_buf_is_valid(M.source_buf) then
+		return vim.api.nvim_buf_get_name(M.source_buf)
 	end
 	return nil
 end
@@ -175,11 +175,10 @@ local window_close = function()
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
-	M.source_bufnr = nil
+	M.source_buf = nil
 end
 
 local create_split_layout = function()
-	M.source_bufnr = vim.api.nvim_get_current_win()
 	local width = M.config.width or 60
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
@@ -188,7 +187,7 @@ local create_split_layout = function()
 	vim.api.nvim_win_set_buf(messages_win, messages_buf)
 
 	-- Add current file to messages window title
-	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
+	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(M.source_buf), ":t")
 	local winbar_text
 	if current_file == "" then
 		winbar_text = string.format(" %s Chat - [No File]", icons.chat)
@@ -361,6 +360,7 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
+		M.source_buf = vim.api.nvim_get_current_buf()
 		M.chat_window = create_split_layout()
 		window_restore_messages()
 		setup_input_keymaps(M.chat_window.input)
