@@ -90,6 +90,19 @@ local function get_file_icon(filename)
 	return file_icon or icons.default_file
 end
 
+local update_winbar = function()
+	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
+		local current_file = get_file()
+		if not current_file then
+			return
+		end
+		local file_name = vim.fn.fnamemodify(current_file, ":t")
+		local file_icon = get_file_icon(current_file)
+		local winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
+		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+	end
+end
+
 ---@param input_text string Message to send
 local chat_send_message = async.void(function(input_text)
 	if not M.current_chat then
@@ -145,6 +158,8 @@ local chat_new_conversation = async.void(function()
 		return
 	end
 
+	update_winbar()
+
 	-- Clear the messages window
 	if M.chat_window and M.chat_window.messages.bufnr then
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
@@ -152,15 +167,6 @@ local chat_new_conversation = async.void(function()
 
 	vim.notify("Started new conversation", vim.log.levels.INFO)
 end)
-
-local update_winbar = function()
-	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
-		local current_file =
-			vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
-		local winbar_text = string.format(" %s Chat  %s %s ", icons.chat, icons.file, current_file)
-		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
-	end
-end
 
 ---Close chat window
 local window_close = function()
@@ -183,7 +189,7 @@ local create_split_layout = function()
 	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
 	local file_name = vim.fn.fnamemodify(current_file, ":t")
 	local file_icon = get_file_icon(current_file)
-	local winbar_text = string.format(" %s Chat [%s %s]", icons.chat, file_icon, file_name)
+	local winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
 	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
 
 	-- Set buffer options for messages
@@ -340,6 +346,10 @@ end
 M.window_toggle = function(session)
 	async.void(function()
 		M.session = session
+		if not session then
+			vim.notify("Failed to create chat session", vim.log.levels.WARN)
+			return
+		end
 		if M.is_visible and M.chat_window then
 			return window_close()
 		end
