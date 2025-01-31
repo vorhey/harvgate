@@ -14,6 +14,7 @@ M.is_chat_visible = nil
 M.message_history = {}
 M.input_history = {}
 M.source_buf = nil
+M.tracked_bufnr = nil
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 local icons = {
@@ -73,7 +74,7 @@ local window_append_text = function(text, save_history)
 	end
 end
 
-local get_file = function()
+local get_filename = function()
 	if M.source_buf and vim.api.nvim_buf_is_valid(M.source_buf) then
 		return vim.api.nvim_buf_get_name(M.source_buf)
 	end
@@ -92,7 +93,7 @@ end
 
 local update_winbar = function()
 	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
-		local current_file = get_file()
+		local current_file = get_filename()
 		local winbar_text
 		if not current_file then
 			winbar_text = string.format(" %s Chat - [No File]", icons.chat)
@@ -108,7 +109,7 @@ end
 ---@param input_text string Message to send
 local chat_send_message = async.void(function(input_text)
 	if not M.current_chat then
-		local current_file = get_file()
+		local current_file = get_filename()
 		M.current_chat = Chat.new(M.session, current_file)
 		M.chat_id = M.current_chat:create_chat()
 		if not M.chat_id then
@@ -151,7 +152,12 @@ local chat_new_conversation = async.void(function()
 	M.message_history = {}
 
 	-- Create new chat
-	local current_file = get_file()
+	local current_file = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.tracked_bufnr))
+	local file_name = vim.fn.fnamemodify(current_file, ":t")
+	local file_icon = get_file_icon(current_file)
+	local winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
+	vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+
 	M.current_chat = Chat.new(M.session, current_file)
 	M.chat_id = M.current_chat:create_chat()
 
@@ -160,12 +166,12 @@ local chat_new_conversation = async.void(function()
 		return
 	end
 
-	update_winbar()
-
 	-- Clear the messages window
 	if M.chat_window and M.chat_window.messages.bufnr then
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
 	end
+
+	M.source_buf = vim.api.nvim_win_get_buf(M.tracked_bufnr)
 
 	vim.notify("Started new conversation", vim.log.levels.INFO)
 end)
@@ -175,7 +181,9 @@ local window_close = function()
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
-	M.source_buf = nil
+	if not M.current_chat then
+		M.source_buf = nil
+	end
 end
 
 local create_split_layout = function()
@@ -187,13 +195,12 @@ local create_split_layout = function()
 	vim.api.nvim_win_set_buf(messages_win, messages_buf)
 
 	-- Add current file to messages window title
-	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(M.source_buf), ":t")
 	local winbar_text
-	if current_file == "" then
+	if not M.source_buf or not vim.api.nvim_buf_is_valid(M.source_buf) then
 		winbar_text = string.format(" %s Chat - [No File]", icons.chat)
 	else
-		local file_name = vim.fn.fnamemodify(current_file, ":t")
-		local file_icon = get_file_icon(current_file)
+		local file_name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(M.source_buf), ":t")
+		local file_icon = get_file_icon(file_name)
 		winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
 	end
 	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
@@ -313,6 +320,8 @@ local window_restore_messages = function()
 		return
 	end
 
+	update_winbar()
+
 	local bufnr = M.chat_window.messages.bufnr
 	local all_lines = {}
 	local highlights = {}
@@ -360,7 +369,11 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
-		M.source_buf = vim.api.nvim_get_current_buf()
+		if not M.current_chat then
+			M.source_buf = vim.api.nvim_get_current_buf()
+			M.tracked_bufnr = vim.api.nvim_get_current_win()
+		end
+
 		M.chat_window = create_split_layout()
 		window_restore_messages()
 		setup_input_keymaps(M.chat_window.input)
