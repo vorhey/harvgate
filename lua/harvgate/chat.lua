@@ -119,16 +119,19 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 	}
 
 	-- Attach file if not exists
-	if self.current_file and not self.has_sent_file then
-		local file_content = vim.fn.readfile(self.current_file)
-		if file_content then
-			table.insert(payload.attachments, {
-				file_name = vim.fn.fnamemodify(self.current_file, ":t"),
-				file_type = "",
-				file_size = #file_content,
-				extracted_content = table.concat(file_content, "\n"),
-			})
-			self.has_sent_file = true
+	if self.current_file and #self.current_file > 0 and not self.has_sent_file then
+		-- Check if file exists before trying to read it
+		if vim.fn.filereadable(self.current_file) == 1 then
+			local file_content = vim.fn.readfile(self.current_file)
+			if file_content and #file_content > 0 then
+				table.insert(payload.attachments, {
+					file_name = vim.fn.fnamemodify(self.current_file, ":t"),
+					file_type = "",
+					file_size = #file_content,
+					extracted_content = table.concat(file_content, "\n"),
+				})
+				self.has_sent_file = true
+			end
 		end
 	end
 

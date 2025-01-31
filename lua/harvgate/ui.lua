@@ -93,12 +93,14 @@ end
 local update_winbar = function()
 	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
 		local current_file = get_file()
+		local winbar_text
 		if not current_file then
-			return
+			winbar_text = string.format(" %s Chat - [No File]", icons.chat)
+		else
+			local file_name = vim.fn.fnamemodify(current_file, ":t")
+			local file_icon = get_file_icon(current_file)
+			winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
 		end
-		local file_name = vim.fn.fnamemodify(current_file, ":t")
-		local file_icon = get_file_icon(current_file)
-		local winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
 		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
 	end
 end
@@ -187,9 +189,14 @@ local create_split_layout = function()
 
 	-- Add current file to messages window title
 	local current_file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.source_bufnr)), ":t")
-	local file_name = vim.fn.fnamemodify(current_file, ":t")
-	local file_icon = get_file_icon(current_file)
-	local winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
+	local winbar_text
+	if current_file == "" then
+		winbar_text = string.format(" %s Chat - [No File]", icons.chat)
+	else
+		local file_name = vim.fn.fnamemodify(current_file, ":t")
+		local file_icon = get_file_icon(current_file)
+		winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
+	end
 	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
 
 	-- Set buffer options for messages
