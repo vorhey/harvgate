@@ -5,6 +5,8 @@
 ---@field width? number Window width
 ---@field keymaps? table Table Keybinding configurations
 ---@field highlights? table Table Highlight configurations
+---@field icons? table Table Icons configurations
+
 local ui = require("harvgate.ui")
 local Session = require("harvgate.session")
 
@@ -24,6 +26,11 @@ local default_config = {
 	highlights = {
 		claude_label = { fg = "#89e162" },
 		user_label = { fg = "#eb94c6" },
+	},
+	icons = {
+		chat = "󰭹",
+		default_file = "",
+		input = "",
 	},
 }
 

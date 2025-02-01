@@ -35,14 +35,21 @@ Harvgate will attempt to load your cookie from the environment variable `CLAUDE_
 ```lua
 require('harvgate').setup({
   cookie = "your_claude_cookie", -- Required: Cookie from browser session, e.g. sessionKey=sk-ant-sidxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  organization_id = nil,
+  model = nil,
   width = 80, -- Optional: Width of chat window (default: 60)
-    keymaps = { -- Optional: Custom keymaps
-        new_chat = "<C-g>",  -- Start new conversation
-    },
-    highlights = { -- Optional: Custom highlights
-        claude_label = { fg = "#89e162" },
-        user_label = { fg = "#eb94c6" },
-    },
+  keymaps = { -- Optional: Custom keymaps
+      new_chat = "<C-g>",  -- Start new conversation
+  },
+  highlights = { -- Optional: Custom highlights
+      claude_label = { fg = "#89e162" },
+      user_label = { fg = "#eb94c6" },
+  },
+  icons = { -- Optional: Custom icons
+      chat = "󰭹",
+      default_file = "",
+      input = "",
+  },
 })
 ```
 ## Usage

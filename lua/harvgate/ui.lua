@@ -16,10 +16,6 @@ M.input_history = {}
 M.source_buf = nil
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
-local icons = {
-	chat = "󰭹",
-	default_file = "",
-}
 
 local function setup_highlights()
 	vim.api.nvim_set_hl(0, "ChatClaudeLabel", M.config.highlights.claude_label)
@@ -82,12 +78,12 @@ end
 
 local function get_file_icon(filename)
 	if not filename then
-		return icons.default_file
+		return M.config.icons.default_file
 	end
 
 	local extension = vim.fn.fnamemodify(filename, ":e")
 	local file_icon, _ = require("nvim-web-devicons").get_icon(filename, extension, { default = true })
-	return file_icon or icons.default_file
+	return file_icon or M.config.icons.default_file
 end
 
 local update_winbar = function()
@@ -95,11 +91,11 @@ local update_winbar = function()
 		local current_file = get_filename()
 		local winbar_text
 		if not current_file then
-			winbar_text = string.format(" %s Chat - [No File]", icons.chat)
+			winbar_text = string.format(" %s Chat - [No File]", M.config.icons.chat)
 		else
 			local file_name = vim.fn.fnamemodify(current_file, ":t")
 			local file_icon = get_file_icon(current_file)
-			winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
+			winbar_text = string.format(" %s Chat - [%s %s]", M.config.icons.chat, file_icon, file_name)
 		end
 		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
 	end
@@ -191,11 +187,11 @@ local create_split_layout = function()
 	-- Add current file to messages window title
 	local winbar_text
 	if not M.source_buf or not vim.api.nvim_buf_is_valid(M.source_buf) then
-		winbar_text = string.format(" %s Chat - [No File]", icons.chat)
+		winbar_text = string.format(" %s Chat - [No File]", M.config.icons.chat)
 	else
 		local file_name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(M.source_buf), ":t")
 		local file_icon = get_file_icon(file_name)
-		winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
+		winbar_text = string.format(" %s Chat - [%s %s]", M.config.icons.chat, file_icon, file_name)
 	end
 	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
 
@@ -217,7 +213,7 @@ local create_split_layout = function()
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
 	vim.api.nvim_set_option_value("number", false, { win = input_win })
 	vim.api.nvim_set_option_value("relativenumber", false, { win = input_win })
-	local input_winbar = "✦ Message Input [Ctrl+S to send]"
+	local input_winbar = string.format("%s Message Input [Ctrl+S to send]", M.config.icons.input)
 	vim.api.nvim_set_option_value("winbar", input_winbar, { win = input_win })
 
 	-- Create wrapper objects that match nui.popup interface
