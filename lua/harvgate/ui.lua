@@ -14,7 +14,6 @@ M.is_chat_visible = nil
 M.message_history = {}
 M.input_history = {}
 M.source_buf = nil
-M.tracked_bufnr = nil
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 local icons = {
@@ -141,6 +140,14 @@ local chat_send_message = async.void(function(input_text)
 	end)
 end)
 
+---Close chat window
+local window_close = function()
+	M.chat_window.layout:unmount()
+	M.chat_window = nil
+	M.is_visible = false
+	M.source_buf = nil
+end
+
 ---Start new conversation
 local chat_new_conversation = async.void(function()
 	if not M.session then
@@ -148,17 +155,16 @@ local chat_new_conversation = async.void(function()
 		return
 	end
 
+	-- Close and reopen the window to get fresh buffer context
+	window_close()
+	M.window_toggle(M.session)
+
 	-- Clear message history
 	M.message_history = {}
+	M.conversation_started = false
 
 	-- Create new chat
-	local current_file = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(M.tracked_bufnr))
-	local file_name = vim.fn.fnamemodify(current_file, ":t")
-	local file_icon = get_file_icon(current_file)
-	local winbar_text = string.format(" %s Chat - [%s %s]", icons.chat, file_icon, file_name)
-	vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
-
-	M.current_chat = Chat.new(M.session, current_file)
+	M.current_chat = Chat.new(M.session, get_filename())
 	M.chat_id = M.current_chat:create_chat()
 
 	if not M.chat_id then
@@ -171,20 +177,8 @@ local chat_new_conversation = async.void(function()
 		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
 	end
 
-	M.source_buf = vim.api.nvim_win_get_buf(M.tracked_bufnr)
-
 	vim.notify("Started new conversation", vim.log.levels.INFO)
 end)
-
----Close chat window
-local window_close = function()
-	M.chat_window.layout:unmount()
-	M.chat_window = nil
-	M.is_visible = false
-	if not M.current_chat then
-		M.source_buf = nil
-	end
-end
 
 local create_split_layout = function()
 	local width = M.config.width or 60
@@ -361,18 +355,11 @@ end
 M.window_toggle = function(session)
 	async.void(function()
 		M.session = session
-		if not session then
-			vim.notify("Failed to create chat session", vim.log.levels.WARN)
-			return
-		end
 		if M.is_visible and M.chat_window then
 			return window_close()
 		end
 
-		if not M.current_chat then
-			M.source_buf = vim.api.nvim_get_current_buf()
-			M.tracked_bufnr = vim.api.nvim_get_current_win()
-		end
+		M.source_buf = vim.api.nvim_get_current_buf()
 
 		M.chat_window = create_split_layout()
 		window_restore_messages()
