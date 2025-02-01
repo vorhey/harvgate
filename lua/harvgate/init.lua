@@ -22,6 +22,7 @@ local default_config = {
 	width = nil,
 	keymaps = {
 		new_chat = "<C-g>",
+		toggle_zen_mode = "<C-r>",
 	},
 	highlights = {
 		claude_label_bg = "#423b37",

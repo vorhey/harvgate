@@ -40,6 +40,7 @@ require('harvgate').setup({
   width = 80, -- Optional: Width of chat window (default: 60)
   keymaps = { -- Optional: Custom keymaps
       new_chat = "<C-g>",  -- Start new conversation
+      toggle_zen_mode = "<C-r>" -- Codeblocks display only  
   },
   highlights = { -- Optional: Custom highlights
       claude_label_bg = "#423b37",
@@ -63,6 +64,7 @@ require('harvgate').setup({
 | `<C-k>` | Focus messages window | Normal |
 | `<C-j>` | Focus input window | Normal |
 | `<C-g>` | Start new conversation | Normal, Insert |
+| `<C-r>` | Toggle Zen Mode | Normal |
 | `q` or `<Esc>` | Close chat window | Normal |
 
 

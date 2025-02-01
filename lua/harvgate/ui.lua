@@ -14,6 +14,7 @@ M.is_chat_visible = nil
 M.message_history = {}
 M.input_history = {}
 M.source_buf = nil
+M.zen_mode = false
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 
@@ -162,13 +163,15 @@ end
 local update_winbar = function()
 	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
 		local current_file = get_filename()
+		local zen_indicator = M.zen_mode and " [ZEN]" or ""
 		local winbar_text
 		if not current_file then
-			winbar_text = string.format(" %s Chat - [No File]", M.config.icons.chat)
+			winbar_text = string.format(" %s Chat%s - [No File]", M.config.icons.chat, zen_indicator)
 		else
 			local file_name = vim.fn.fnamemodify(current_file, ":t")
 			local file_icon = get_file_icon(current_file)
-			winbar_text = string.format(" %s Chat - [%s %s]", M.config.icons.chat, file_icon, file_name)
+			winbar_text =
+				string.format(" %s Chat%s - [%s %s]", M.config.icons.chat, zen_indicator, file_icon, file_name)
 		end
 		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
 	end
@@ -215,6 +218,7 @@ local window_close = function()
 	M.chat_window = nil
 	M.is_visible = false
 	M.source_buf = nil
+	M.zen_mode = false
 end
 
 ---Start new conversation
@@ -333,50 +337,6 @@ local create_split_layout = function()
 	}
 end
 
-local setup_input_keymaps = function(input_win)
-	local keymaps = M.config.keymaps or {}
-	local new_chat = async.void(function()
-		chat_new_conversation()
-	end)
-	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
-	input_win:map("n", "<Esc>", window_close, { noremap = true })
-	input_win:map("n", "q", window_close, { noremap = true })
-	input_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
-	input_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
-
-	local function send_input()
-		local lines = vim.api.nvim_buf_get_lines(input_win.bufnr, 0, -1, false)
-		local input_text = table.concat(lines, "\n")
-		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
-		async.run(function()
-			chat_send_message(input_text)
-		end)
-	end
-
-	input_win:map("n", "<C-s>", function()
-		async.run(function()
-			send_input()
-		end)
-	end, { noremap = true })
-	input_win:map("i", "<C-s>", function()
-		async.run(function()
-			send_input()
-		end)
-	end, { noremap = true })
-end
-
-local setup_messages_keymaps = function(messages_win)
-	local keymaps = M.config.keymaps or {}
-	local new_chat = async.void(function()
-		chat_new_conversation()
-	end)
-	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
-	messages_win:map("n", "<Esc>", window_close, { noremap = true })
-	messages_win:map("n", "q", window_close, { noremap = true })
-	messages_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
-	messages_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
-end
-
 ---Restore message history
 local window_restore_messages = function()
 	if not (M.chat_window and M.chat_window.messages.bufnr) then
@@ -473,6 +433,82 @@ local window_restore_messages = function()
 	vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { line_count, 0 })
 end
 
+local function toggle_zen_mode()
+	M.zen_mode = not M.zen_mode
+
+	if M.chat_window and M.chat_window.messages.bufnr then
+		local bufnr = M.chat_window.messages.bufnr
+		local all_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+
+		if M.zen_mode then
+			-- Extract only code blocks
+			local zen_lines = {}
+			local in_code_block = false
+
+			for _, line in ipairs(all_lines) do
+				if line:match("^```") then
+					in_code_block = not in_code_block
+					table.insert(zen_lines, line)
+				elseif in_code_block then
+					table.insert(zen_lines, line)
+				end
+			end
+
+			vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, zen_lines)
+		else
+			-- Restore full chat history
+			window_restore_messages()
+		end
+		update_winbar()
+	end
+end
+
+local setup_input_keymaps = function(input_win)
+	local keymaps = M.config.keymaps or {}
+	local new_chat = async.void(function()
+		chat_new_conversation()
+	end)
+	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
+	input_win:map("n", "<Esc>", window_close, { noremap = true })
+	input_win:map("n", "q", window_close, { noremap = true })
+	input_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
+	input_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
+	input_win:map("n", keymaps.toggle_zen_mode, toggle_zen_mode, { noremap = true })
+
+	local function send_input()
+		local lines = vim.api.nvim_buf_get_lines(input_win.bufnr, 0, -1, false)
+		local input_text = table.concat(lines, "\n")
+		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
+		async.run(function()
+			chat_send_message(input_text)
+		end)
+	end
+
+	input_win:map("n", "<C-s>", function()
+		async.run(function()
+			send_input()
+		end)
+	end, { noremap = true })
+	input_win:map("i", "<C-s>", function()
+		async.run(function()
+			send_input()
+		end)
+	end, { noremap = true })
+end
+
+local setup_messages_keymaps = function(messages_win)
+	local keymaps = M.config.keymaps or {}
+	local new_chat = async.void(function()
+		chat_new_conversation()
+	end)
+	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
+	messages_win:map("n", "<Esc>", window_close, { noremap = true })
+	messages_win:map("n", "q", window_close, { noremap = true })
+	messages_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
+	messages_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
+	messages_win:map("n", keymaps.toggle_zen_mode, toggle_zen_mode, { noremap = true })
+end
+
 ---@param session any Chat session
 M.window_toggle = function(session)
 	async.void(function()
@@ -482,6 +518,7 @@ M.window_toggle = function(session)
 		end
 
 		M.source_buf = vim.api.nvim_get_current_buf()
+		M.zen_mode = false
 
 		M.chat_window = create_split_layout()
 		window_restore_messages()
