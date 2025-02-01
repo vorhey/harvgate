@@ -24,8 +24,10 @@ local default_config = {
 		new_chat = "<C-g>",
 	},
 	highlights = {
-		claude_label = { fg = "#89e162" },
-		user_label = { fg = "#eb94c6" },
+		claude_label_bg = "#423b37",
+		claude_label_fg = "#E6B99D",
+		user_label_bg = "#3b3b3b",
+		user_label_fg = "#919191",
 	},
 	icons = {
 		chat = "󰭹",
