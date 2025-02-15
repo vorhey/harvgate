@@ -239,7 +239,6 @@ local window_close = function()
 	M.chat_window.layout:unmount()
 	M.chat_window = nil
 	M.is_visible = false
-	M.source_buf = nil
 	M.zen_mode = false
 	M.last_displayed_message = 0
 end
@@ -250,6 +249,9 @@ local chat_new_conversation = async.void(function()
 		vim.notify("No active session", vim.log.levels.ERROR)
 		return
 	end
+
+	-- Clear source_buf
+	M.source_buf = nil
 
 	-- Close and reopen the window to get fresh buffer context
 	window_close()
@@ -289,8 +291,9 @@ local create_split_layout = function()
 	if not M.source_buf or not vim.api.nvim_buf_is_valid(M.source_buf) then
 		winbar_text = string.format(" %s Chat - [No File]", M.config.icons.chat)
 	else
-		local file_name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(M.source_buf), ":t")
-		local file_icon = get_file_icon(file_name)
+		local full_path = vim.api.nvim_buf_get_name(M.source_buf)
+		local file_name = vim.fn.fnamemodify(full_path, ":t")
+		local file_icon = get_file_icon(full_path)
 		winbar_text = string.format(" %s Chat - [%s %s]", M.config.icons.chat, file_icon, file_name)
 	end
 	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
@@ -543,9 +546,11 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
-		M.source_buf = vim.api.nvim_get_current_buf()
-		M.zen_mode = false
+		if not M.source_buf or not M.current_chat then
+			M.source_buf = vim.api.nvim_get_current_buf()
+		end
 
+		M.zen_mode = false
 		M.chat_window = create_split_layout()
 		window_restore_messages()
 		setup_input_keymaps(M.chat_window.input)
@@ -553,6 +558,7 @@ M.window_toggle = function(session)
 
 		M.chat_window.layout:mount()
 		M.is_visible = true
+		update_winbar()
 	end)()
 end
 
