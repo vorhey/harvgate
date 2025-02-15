@@ -15,6 +15,7 @@ M.message_history = {}
 M.input_history = {}
 M.source_buf = nil
 M.zen_mode = false
+M.last_displayed_message = 0
 
 local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
 
@@ -189,11 +190,16 @@ local chat_send_message = async.void(function(input_text)
 		end
 	end
 
-	vim.schedule(function()
-		local trimmed_message = utils.trim_message(input_text)
-		window_append_text("\nYou: " .. trimmed_message .. "\n")
+	-- Store the user message in history
+	local trimmed_message = utils.trim_message(input_text)
+	local user_message = "\nYou: " .. trimmed_message .. "\n"
+	table.insert(M.message_history, user_message)
+
+	-- Only update window if it exists
+	if M.chat_window and M.chat_window.messages.bufnr and vim.api.nvim_buf_is_valid(M.chat_window.messages.bufnr) then
+		window_append_text(user_message, false)
 		window_append_text("Claude: *thinking...*", false)
-	end)
+	end
 
 	async.util.sleep(100) -- Small delay to ensure UI updates
 
@@ -206,9 +212,25 @@ local chat_send_message = async.void(function(input_text)
 			return
 		end
 
-		local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
-		window_append_text("Claude:" .. response)
+		-- Store Claude's response in history
+		local claude_response = "Claude:" .. response
+
+		-- Only update window if it exists and is valid
+		if
+			M.chat_window
+			and M.chat_window.messages.bufnr
+			and vim.api.nvim_buf_is_valid(M.chat_window.messages.bufnr)
+		then
+			-- Remove thinking message
+			local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
+			-- Append actual response
+			window_append_text(claude_response)
+		else
+			-- When window is closed, just store in history WITHOUT calling window_append_text
+			table.insert(M.message_history, claude_response)
+			vim.notify("Chat response received and stored. Reopen chat to view.", vim.log.levels.INFO)
+		end
 	end)
 end)
 
@@ -219,6 +241,7 @@ local window_close = function()
 	M.is_visible = false
 	M.source_buf = nil
 	M.zen_mode = false
+	M.last_displayed_message = 0
 end
 
 ---Start new conversation
@@ -350,11 +373,12 @@ local window_restore_messages = function()
 	local highlights = {}
 
 	-- Process all messages and prepare lines with proper labels and icons
-	for _, msg in ipairs(M.message_history) do
+	for i = M.last_displayed_message + 1, #M.message_history do
+		local msg = M.message_history[i]
 		local start_line = #all_lines
 		local lines = vim.split(msg, "\n")
 
-		for i, line in ipairs(lines) do
+		for j, line in ipairs(lines) do
 			local left_icon_length = #icons.left_circle
 			local right_icon_length = #icons.right_circle
 
@@ -363,7 +387,7 @@ local window_restore_messages = function()
 				local modified_line = label .. line:sub(8) -- 8 to account for "Claude: "
 				table.insert(all_lines, modified_line)
 
-				local line_num = start_line + i - 1
+				local line_num = start_line + j - 1
 				local label_length = #"  Claude: "
 
 				-- Store highlight information
@@ -384,7 +408,7 @@ local window_restore_messages = function()
 				local modified_line = label .. line:sub(5) -- 5 to account for "You: "
 				table.insert(all_lines, modified_line)
 
-				local line_num = start_line + i - 1
+				local line_num = start_line + j - 1
 				local label_length = #" You: "
 
 				-- Store highlight information
@@ -422,6 +446,8 @@ local window_restore_messages = function()
 			)
 		end
 	end
+
+	M.last_displayed_message = #M.message_history
 
 	-- Restore input history if exists
 	if #M.input_history > 0 then
