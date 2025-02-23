@@ -1,6 +1,7 @@
 local M = {}
 
 M.MAX_MESSAGE_LENGTH = 1000 -- Maximum characters per message
+
 function M.uuidv4()
 	math.randomseed(os.time())
 	local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
@@ -45,6 +46,45 @@ function M.trim_message(message)
 		trim_point = M.MAX_MESSAGE_LENGTH
 	end
 	return message:sub(1, trim_point) .. "\n[Message truncated due to length]"
+end
+
+function M.buffer_autocmd(bufnr, cb)
+	vim.api.nvim_create_autocmd("CmdlineLeave", {
+		buffer = bufnr,
+		callback = function()
+			local cmd = vim.fn.getcmdline()
+			if
+				cmd == "q"
+				or cmd == "q!"
+				or cmd == "quit"
+				or cmd == "quit!"
+				or cmd == "wq"
+				or cmd == "wq!"
+				or cmd == "x"
+				or cmd == "x!"
+				or cmd == "xit"
+				or cmd == "xit!"
+				or cmd == "exit"
+				or cmd == "exit!"
+				or cmd == "qa"
+				or cmd == "qa!"
+				or cmd == "qall"
+				or cmd == "qall!"
+				or cmd == "wqa"
+				or cmd == "wqa!"
+				or cmd == "wqall"
+				or cmd == "wqall!"
+				or cmd == "xa"
+				or cmd == "xa!"
+				or cmd == "xall"
+				or cmd == "xall!"
+			then
+				vim.schedule(function()
+					cb()
+				end)
+			end
+		end,
+	})
 end
 
 return M

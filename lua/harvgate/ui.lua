@@ -493,6 +493,7 @@ local function toggle_zen_mode()
 end
 
 local setup_input_keymaps = function(input_win)
+	utils.buffer_autocmd(input_win.bufnr, window_close)
 	local keymaps = M.config.keymaps or {}
 	local new_chat = async.void(function()
 		chat_new_conversation()
@@ -526,6 +527,7 @@ local setup_input_keymaps = function(input_win)
 end
 
 local setup_messages_keymaps = function(messages_win)
+	utils.buffer_autocmd(messages_win.bufnr, window_close)
 	local keymaps = M.config.keymaps or {}
 	local new_chat = async.void(function()
 		chat_new_conversation()
