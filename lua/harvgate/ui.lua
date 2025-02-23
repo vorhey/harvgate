@@ -342,10 +342,10 @@ local create_split_layout = function()
 		layout = {
 			unmount = function()
 				if vim.api.nvim_win_is_valid(input_win) then
-					vim.api.nvim_win_close(input_win, true)
+					pcall(vim.api.nvim_win_close, input_win, true)
 				end
 				if vim.api.nvim_win_is_valid(messages_win) then
-					vim.api.nvim_win_close(messages_win, true)
+					pcall(vim.api.nvim_win_close, messages_win, true)
 				end
 			end,
 			mount = function() end,
