@@ -23,7 +23,7 @@ function RequestBuilder.new(session)
 				["Host"] = "claude.ai",
 				["User-Agent"] = session.user_agent,
 				["Accept-Language"] = "en-US,en;q=0.5",
-				["Accept-Encoding"] = "gzip, deflate, br",
+				["Accept-Encoding"] = "gzip, deflate",
 				["Origin"] = BASE_URL,
 				["DNT"] = "1",
 				["Sec-Fetch-Dest"] = "empty",

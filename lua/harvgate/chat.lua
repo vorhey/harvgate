@@ -13,9 +13,8 @@ local function process_stream_response(response)
 		return nil
 	end
 
-	local data_string = response.body:gsub("\n+", "\n"):gsub("^%s*(.-)%s*$", "%1")
 	local completions = {}
-
+	local data_string = response.body:gsub("\n+", "\n"):gsub("^%s*(.-)%s*$", "%1")
 	for line in data_string:gmatch("[^\n]+") do
 		local json_start, json_end = line:find("{.*}")
 		if json_start then
@@ -27,6 +26,19 @@ local function process_stream_response(response)
 	end
 
 	return #completions > 0 and table.concat(completions, "") or nil
+end
+
+local function get_options()
+	if vim.fn.has("win32") == 1 then
+		return {
+			raw = { "--tlsv1.3", "--ipv4" },
+		}
+	else
+		return {
+			http_version = "HTTP/2",
+			raw = { "--tlsv1.3", "--ipv4" },
+		}
+	end
 end
 
 ---@param session Session
@@ -75,10 +87,7 @@ Chat.create_chat = async.wrap(function(self, cb)
 	end
 
 	-- Attempt the first request with http2 options
-	local response = send_request({
-		http_version = "HTTP/2",
-		raw = { "--tlsv1.3", "--ipv4" },
-	})
+	local response = send_request(get_options())
 
 	-- If the first attempt fails, retry without http2 options
 	if not response or response.status ~= 201 then
@@ -145,6 +154,8 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		curl.post(vim.tbl_extend("force", {
 			url = config.url,
 			headers = config.headers,
+			compressed = true,
+			raw = true,
 			body = config.body,
 			callback = vim.schedule_wrap(function(response)
 				if not self.named_chats[chat_id] then
@@ -159,10 +170,7 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 	end
 
 	-- Attempt the first request with http2 options
-	send_request({
-		http_version = "HTTP/2",
-		raw = { "--tlsv1.3", "--ipv4" },
-	}, function(result)
+	send_request(get_options(), function(result)
 		if result then
 			cb(result)
 			return
@@ -194,10 +202,7 @@ Chat.list_chats = async.wrap(function(self, cb)
 	end
 
 	-- Attempt the first request with http2 options
-	local response = send_request({
-		http_version = "HTTP/2",
-		raw = { "--tlsv1.3", "--ipv4" },
-	})
+	local response = send_request(get_options())
 
 	-- If the first attempt fails, retry without http2 options
 	if not response or response.status ~= 201 then
