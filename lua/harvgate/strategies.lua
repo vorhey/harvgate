@@ -10,10 +10,17 @@ return {
 			}
 		end,
 		options = function()
-			return {
-				http_version = "HTTP/2",
-				raw = { "--tlsv1.3", "--ipv4" },
-			}
+			if vim.fn.has("win32") == 1 then
+				return {
+					-- No HTTP/2 option for Windows
+					raw = { "--tlsv1.3", "--ipv4" },
+				}
+			else
+				return {
+					http_version = "HTTP/2",
+					raw = { "--tlsv1.3", "--ipv4" },
+				}
+			end
 		end,
 	},
 	{
