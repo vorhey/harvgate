@@ -2,10 +2,13 @@
 
 A Neovim plugin for chatting with Claude directly in your editor using your claude web subscription cookie for authentication.
 
+[![logo](https://i.postimg.cc/BZ58DKWh/09f5972d-d30f-4d53-8dd7-9b7fdab59b2f.jpg)](https://postimg.cc/t7TCG74P)
+
+[![chat example](https://i.postimg.cc/HLm40CZ5/example.png)](https://postimg.cc/4Y89ZjTN)
+
 ## Features
 - Split window interface for chatting with Claude
 - Markdown syntax highlighting for responses
-- Conversation history support
 - Easy navigation between input and message windows
 - Quick conversation reset
 - Session persistence using browser cookie authentication
@@ -21,7 +24,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 {
  'vorhey/harvgate',
  dependencies = {
-  'nvim-lua/plenary.nvim',
   'nvim-tree/nvim-web-devicons',
  }
 }
@@ -69,6 +71,8 @@ require('harvgate').setup({
 
 
 ## Contributing
+
+No guidelines yet, maybe someday if it ever gets some traction.
 
 ### Commit Convention
 
