@@ -87,4 +87,39 @@ function M.buffer_autocmd(bufnr, cb)
 	})
 end
 
+local function get_current_distro()
+	local os_release = io.open("/etc/os-release", "r")
+	if not os_release then
+		return nil
+	end
+
+	local distro_name = nil
+	for line in os_release:lines() do
+		if line:match("^NAME=") then
+			distro_name = line:match('NAME="(.-)"') or line:match("NAME=(.-)$")
+			break
+		end
+	end
+	os_release:close()
+
+	return distro_name
+end
+
+function M.is_distro(distro_names)
+	local current_distro = get_current_distro()
+	if not current_distro then
+		return false
+	end
+
+	current_distro = current_distro:lower()
+
+	for _, distro_name in ipairs(distro_names) do
+		if current_distro:match(distro_name:lower()) then
+			return true
+		end
+	end
+
+	return false
+end
+
 return M

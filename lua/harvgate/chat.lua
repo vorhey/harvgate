@@ -33,11 +33,13 @@ local function get_options()
 		return {
 			raw = { "--tlsv1.3", "--ipv4" },
 		}
-	else
+	elseif utils.is_distro({ "ubuntu", "debian" }) then
 		return {
 			http_version = "HTTP/2",
 			raw = { "--tlsv1.3", "--ipv4" },
 		}
+	else
+		return {}
 	end
 end
 
@@ -86,13 +88,7 @@ Chat.create_chat = async.wrap(function(self, cb)
 		end, 1)()
 	end
 
-	-- Attempt the first request with http2 options
 	local response = send_request(get_options())
-
-	-- If the first attempt fails, retry without http2 options
-	if not response or response.status ~= 201 then
-		response = send_request({})
-	end
 
 	if not response then
 		cb(nil, "Async error: Failed to receive response.")
@@ -105,6 +101,7 @@ Chat.create_chat = async.wrap(function(self, cb)
 	end
 
 	local ok, decoded_json = pcall(vim.json.decode, response.body)
+
 	if not ok then
 		cb(nil, "Failed to decode response JSON")
 		return
@@ -154,8 +151,6 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		curl.post(vim.tbl_extend("force", {
 			url = config.url,
 			headers = config.headers,
-			compressed = true,
-			raw = true,
 			body = config.body,
 			callback = vim.schedule_wrap(function(response)
 				if not self.named_chats[chat_id] then
@@ -169,16 +164,11 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		}, options))
 	end
 
-	-- Attempt the first request with http2 options
 	send_request(get_options(), function(result)
 		if result then
 			cb(result)
 			return
 		end
-		-- Attempt the second request without http2 options
-		send_request({}, function(retry_result)
-			cb(retry_result)
-		end)
 	end)
 end, 4)
 
@@ -201,13 +191,7 @@ Chat.list_chats = async.wrap(function(self, cb)
 		end, 1)()
 	end
 
-	-- Attempt the first request with http2 options
 	local response = send_request(get_options())
-
-	-- If the first attempt fails, retry without http2 options
-	if not response or response.status ~= 201 then
-		response = send_request({})
-	end
 
 	if not response then
 		cb(nil, "Async error: Failed to receive response.")
