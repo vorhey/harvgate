@@ -1,7 +1,8 @@
 local curl = require("plenary.curl")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
-local RequestBuilder = require("harvgate.request_builder")
+local URLBuilder = require("harvgate.url_builder")
+local OptionsBuilder = require("harvgate.opts_builder")
 
 ---@class Chat
 ---@field session Session
@@ -15,6 +16,7 @@ local function process_stream_response(response)
 
 	local completions = {}
 	local data_string = response.body:gsub("\n+", "\n"):gsub("^%s*(.-)%s*$", "%1")
+
 	for line in data_string:gmatch("[^\n]+") do
 		local json_start, json_end = line:find("{.*}")
 		if json_start then
@@ -26,21 +28,6 @@ local function process_stream_response(response)
 	end
 
 	return #completions > 0 and table.concat(completions, "") or nil
-end
-
-local function get_options()
-	if vim.fn.has("win32") == 1 then
-		return {
-			raw = { "--tlsv1.3", "--ipv4" },
-		}
-	elseif utils.is_distro({ "ubuntu", "debian" }) then
-		return {
-			http_version = "HTTP/2",
-			raw = { "--tlsv1.3", "--ipv4" },
-		}
-	else
-		return {}
-	end
 end
 
 ---@param session Session
@@ -69,26 +56,11 @@ Chat.create_chat = async.wrap(function(self, cb)
 			files = {},
 		},
 	}
-	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_chat_creation():with_body(payload):build()
 
-	--- Send a curl request with the specified options
-	--- @param options table Options for the curl request
-	--- @return table|nil response Response table or nil if failed
-	local function send_request(options)
-		return async.wrap(function(inner_cb)
-			curl.post(vim.tbl_extend("force", {
-				url = config.url,
-				headers = config.headers,
-				body = config.body,
-				callback = vim.schedule_wrap(function(response)
-					inner_cb(response)
-				end),
-			}, options))
-		end, 1)()
-	end
+	local url = URLBuilder.new():chat_creation(self.session.organization_id)
+	local opts = OptionsBuilder.new(self.session):for_chat_creation():with_body(payload):build()
 
-	local response = send_request(get_options())
+	local response = curl.post(url, opts)
 
 	if not response then
 		cb(nil, "Async error: Failed to receive response.")
@@ -141,17 +113,12 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		end
 	end
 
-	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_message_sending(chat_id):with_body(payload):build()
+	local url = URLBuilder.new():message_sending(self.session.organization_id, chat_id)
+	local opts = OptionsBuilder.new(self.session):for_message_sending(chat_id):with_body(payload):build()
 
-	--- Send a curl request with the specified options
-	--- @param options table Options for the curl request
-	--- @return table|nil response Response table or nil if failed
-	local function send_request(options, inner_cb)
-		curl.post(vim.tbl_extend("force", {
-			url = config.url,
-			headers = config.headers,
-			body = config.body,
+	curl.post(
+		url,
+		vim.tbl_extend("force", opts, {
 			callback = vim.schedule_wrap(function(response)
 				if not self.named_chats[chat_id] then
 					async.run(function()
@@ -159,39 +126,17 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 						self.named_chats[chat_id] = true
 					end)
 				end
-				inner_cb(process_stream_response(response))
+				cb(process_stream_response(response))
 			end),
-		}, options))
-	end
-
-	send_request(get_options(), function(result)
-		if result then
-			cb(result)
-			return
-		end
-	end)
+		})
+	)
 end, 4)
 
 Chat.list_chats = async.wrap(function(self, cb)
-	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_chat_listing():build()
+	local url = URLBuilder.new():chat_listing(self.session.organization_id)
+	local opts = OptionsBuilder.new(self.session):for_chat_listing():build()
 
-	--- Send a curl request with the specified options
-	--- @param options table Options for the curl request
-	--- @return table|nil response Response table or nil if failed
-	local function send_request(options)
-		return async.wrap(function(inner_cb)
-			curl.get(vim.tbl_extend("force", {
-				url = config.url,
-				headers = config.headers,
-				callback = vim.schedule_wrap(function(response)
-					inner_cb(response)
-				end),
-			}, options))
-		end, 1)()
-	end
-
-	local response = send_request(get_options())
+	local response = curl.get(url, opts)
 
 	if not response then
 		cb(nil, "Async error: Failed to receive response.")
@@ -232,18 +177,19 @@ Chat.rename_chat = function(self, chat_id, first_message)
 		message_content = "Message 1:" .. first_message,
 		recent_titles = {},
 	}
-	local builder = RequestBuilder.new(self.session)
-	local config = builder:for_chat_renaming(chat_id):with_body(payload):build()
+
+	local url = URLBuilder.new():chat_renaming(self.session.organization_id, chat_id)
+	local opts = OptionsBuilder.new(self.session):for_chat_renaming():with_body(payload):build()
 
 	return async.wrap(function(cb)
-		curl.post({
-			url = config.url,
-			headers = config.headers,
-			body = config.body,
-			callback = vim.schedule_wrap(function(response)
-				cb(response)
-			end),
-		})
+		curl.post(
+			url,
+			vim.tbl_extend("force", opts, {
+				callback = vim.schedule_wrap(function(response)
+					cb(response)
+				end),
+			})
+		)
 	end, 1)()
 end
 
