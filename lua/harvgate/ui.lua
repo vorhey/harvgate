@@ -1,6 +1,7 @@
 local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
+local highlights = require("harvgate.highlights")
 
 local M = {}
 
@@ -23,30 +24,6 @@ local icons = {
 	left_circle = "",
 	right_circle = "",
 }
-
-local function setup_highlights()
-	vim.api.nvim_set_hl(0, "ChatClaudeLabel", {
-		bg = M.config.highlights.claude_label_bg,
-		fg = M.config.highlights.claude_label_fg,
-		bold = true,
-	})
-
-	vim.api.nvim_set_hl(0, "ChatUserLabel", {
-		bg = M.config.highlights.user_label_bg,
-		fg = M.config.highlights.user_label_fg,
-		bold = true,
-	})
-
-	vim.api.nvim_set_hl(0, "ChatClaudeBorder", {
-		fg = M.config.highlights.claude_label_bg,
-		bold = true,
-	})
-
-	vim.api.nvim_set_hl(0, "ChatUserBorder", {
-		fg = M.config.highlights.user_label_bg,
-		bold = true,
-	})
-end
 
 ---@param text string Text to append
 ---@param save_history boolean? Save to history (default: true)
@@ -570,7 +547,7 @@ M.setup = function(config)
 	if M.config.width and (not utils.is_number(M.config.width) or M.config.width < 40) then
 		vim.notify("Invalid width value should be at least 40, falling back to default", vim.log.levels.WARN)
 	end
-	setup_highlights()
+	highlights.setup(config)
 end
 
 return M
