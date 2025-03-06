@@ -9,7 +9,7 @@ local OptionsBuilder = require("harvgate.opts_builder")
 local Chat = {}
 Chat.__index = Chat
 
-local function process_stream_response(response)
+local function parse_stream_data(response)
 	if not response or response.status ~= 200 then
 		return nil
 	end
@@ -30,9 +30,9 @@ local function process_stream_response(response)
 	return #completions > 0 and table.concat(completions, "") or nil
 end
 
----@param session Session
----@param file_path string|nil
----@return Chat
+---@param session Session The session object containing authentication information
+---@param file_path string|nil Optional path to a file to be included in the chat
+---@return Chat A new Chat instance
 function Chat.new(session, file_path)
 	assert(type(session) == "table" and session.cookie and session.organization_id, "Invalid session object")
 	return setmetatable({
@@ -57,8 +57,8 @@ Chat.create_chat = async.wrap(function(self, cb)
 		},
 	}
 
-	local url = URLBuilder.new():chat_creation(self.session.organization_id)
-	local opts = OptionsBuilder.new(self.session):for_chat_creation():with_body(payload):build()
+	local url = URLBuilder.new():create_chat(self.session.organization_id)
+	local opts = OptionsBuilder.new(self.session):create_chat():with_body(payload):build()
 
 	local response = curl.post(url, opts)
 
@@ -113,8 +113,8 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		end
 	end
 
-	local url = URLBuilder.new():message_sending(self.session.organization_id, chat_id)
-	local opts = OptionsBuilder.new(self.session):for_message_sending(chat_id):with_body(payload):build()
+	local url = URLBuilder.new():send_message(self.session.organization_id, chat_id)
+	local opts = OptionsBuilder.new(self.session):send_message(chat_id):with_body(payload):build()
 
 	curl.post(
 		url,
@@ -126,15 +126,17 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 						self.named_chats[chat_id] = true
 					end)
 				end
-				cb(process_stream_response(response))
+				cb(parse_stream_data(response))
 			end),
 		})
 	)
 end, 4)
 
-Chat.list_chats = async.wrap(function(self, cb)
-	local url = URLBuilder.new():chat_listing(self.session.organization_id)
-	local opts = OptionsBuilder.new(self.session):for_chat_listing():build()
+---@async
+---@return table|nil, string|nil The list of all chats, or nil and an error message if an error occurred
+Chat.get_all_chats = async.wrap(function(self, cb)
+	local url = URLBuilder.new():get_all_chats(self.session.organization_id)
+	local opts = OptionsBuilder.new(self.session):get_all_chats():build()
 
 	local response = curl.get(url, opts)
 
@@ -158,8 +160,10 @@ Chat.list_chats = async.wrap(function(self, cb)
 	cb(decoded_json, nil)
 end, 2)
 
-Chat.list_unnamed_chats = async.wrap(function(self, cb)
-	local chats, err = self:list_chats()
+---@async
+---@return table|nil, string|nil The list of all unnamed chats, or nil and an error message if an error occurred
+Chat.get_all_unnamed_chats = async.wrap(function(self, cb)
+	local chats, err = self:get_all_chats()
 	if err then
 		cb(nil, err)
 		return
@@ -172,14 +176,17 @@ Chat.list_unnamed_chats = async.wrap(function(self, cb)
 	cb(unnamed)
 end, 2)
 
+---@param chat_id string The ID of the chat conversation
+---@param first_message string The first message of the chat to use for creating a title
+---@return table|nil The response from the server, or nil if an error occurred
 Chat.rename_chat = function(self, chat_id, first_message)
 	local payload = {
 		message_content = "Message 1:" .. first_message,
 		recent_titles = {},
 	}
 
-	local url = URLBuilder.new():chat_renaming(self.session.organization_id, chat_id)
-	local opts = OptionsBuilder.new(self.session):for_chat_renaming():with_body(payload):build()
+	local url = URLBuilder.new():rename_chat(self.session.organization_id, chat_id)
+	local opts = OptionsBuilder.new(self.session):rename_chat():with_body(payload):build()
 
 	return async.wrap(function(cb)
 		curl.post(

@@ -13,14 +13,14 @@ end
 
 ---@param organization_id string
 ---@return string
-function URLBuilder:chat_creation(organization_id)
+function URLBuilder:create_chat(organization_id)
 	return string.format("%s/api/organizations/%s/chat_conversations", self.base_url, organization_id)
 end
 
 ---@param organization_id string
 ---@param chat_id string
 ---@return string
-function URLBuilder:message_sending(organization_id, chat_id)
+function URLBuilder:send_message(organization_id, chat_id)
 	return string.format(
 		"%s/api/organizations/%s/chat_conversations/%s/completion",
 		self.base_url,
@@ -31,14 +31,14 @@ end
 
 ---@param organization_id string
 ---@return string
-function URLBuilder:chat_listing(organization_id)
+function URLBuilder:get_all_chats(organization_id)
 	return string.format("%s/api/organizations/%s/chat_conversations", self.base_url, organization_id)
 end
 
 ---@param organization_id string
 ---@param chat_id string
 ---@return string
-function URLBuilder:chat_renaming(organization_id, chat_id)
+function URLBuilder:rename_chat(organization_id, chat_id)
 	return string.format("%s/api/organizations/%s/chat_conversations/%s/title", self.base_url, organization_id, chat_id)
 end
 

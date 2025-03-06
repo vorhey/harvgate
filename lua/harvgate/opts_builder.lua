@@ -38,7 +38,7 @@ function OptionsBuilder.new(session)
 end
 
 ---@return OptionsBuilder
-function OptionsBuilder:for_chat_creation()
+function OptionsBuilder:create_chat()
 	self.config.headers["Accept"] = "*/*"
 	self.config.headers["Content-Type"] = "application/json"
 	self.config.headers["Referer"] = string.format("%s/chats", BASE_URL)
@@ -47,7 +47,7 @@ end
 
 ---@param chat_id string
 ---@return OptionsBuilder
-function OptionsBuilder:for_message_sending(chat_id)
+function OptionsBuilder:send_message(chat_id)
 	self.config.headers["Accept"] = "text/event-stream, text/event-stream"
 	self.config.headers["Content-Type"] = "application/json"
 	self.config.headers["Referer"] = string.format("%s/chat/%s", BASE_URL, chat_id)
@@ -55,7 +55,7 @@ function OptionsBuilder:for_message_sending(chat_id)
 end
 
 ---@return OptionsBuilder
-function OptionsBuilder:for_chat_listing()
+function OptionsBuilder:get_all_chats()
 	self.config.headers["Accept"] = "application/json"
 	self.config.headers["Referer"] = string.format("%s/chats", BASE_URL)
 	return self
@@ -71,7 +71,7 @@ function OptionsBuilder:with_body(payload)
 end
 
 ---@return OptionsBuilder
-function OptionsBuilder:for_chat_renaming()
+function OptionsBuilder:rename_chat()
 	self.config.headers["Accept"] = "*/*"
 	self.config.headers["Content-Type"] = "application/json"
 	return self
