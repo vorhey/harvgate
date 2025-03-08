@@ -18,7 +18,7 @@ M.source_buf = nil
 M.zen_mode = false
 M.last_displayed_message = 0
 
-local HIGHLIGHT_NS = vim.api.nvim_create_namespace("chat highlights")
+local hlns = vim.api.nvim_create_namespace("chat highlights")
 
 local icons = {
 	left_circle = "",
@@ -59,59 +59,24 @@ local window_append_text = function(text, save_history)
 			local right_icon_length = #icons.right_circle
 			if line:match(icons.left_circle .. "  Claude:") then
 				local label_length = #"  Claude: "
-
-				vim.api.nvim_buf_add_highlight(
+				highlights.add_claude_highlights(
+					hlns,
 					M.chat_window.messages.bufnr,
-					HIGHLIGHT_NS,
-					"ChatClaudeBorder",
-					line_num,
-					0,
-					label_length
-				)
-
-				vim.api.nvim_buf_add_highlight(
-					M.chat_window.messages.bufnr,
-					HIGHLIGHT_NS,
-					"ChatClaudeLabel",
 					line_num,
 					left_icon_length,
-					left_icon_length + label_length
-				)
-
-				vim.api.nvim_buf_add_highlight(
-					M.chat_window.messages.bufnr,
-					HIGHLIGHT_NS,
-					"ChatClaudeBorder",
-					line_num,
-					left_icon_length + label_length,
-					left_icon_length + label_length + right_icon_length
+					label_length,
+					right_icon_length
 				)
 			elseif line:match(icons.left_circle .. " You:") then
 				local label_length = #" You: "
 
-				vim.api.nvim_buf_add_highlight(
+				highlights.add_user_highlights(
+					hlns,
 					M.chat_window.messages.bufnr,
-					HIGHLIGHT_NS,
-					"ChatUserBorder",
-					line_num,
-					0,
-					label_length
-				)
-				vim.api.nvim_buf_add_highlight(
-					M.chat_window.messages.bufnr,
-					HIGHLIGHT_NS,
-					"ChatUserLabel",
 					line_num,
 					left_icon_length,
-					left_icon_length + label_length
-				)
-				vim.api.nvim_buf_add_highlight(
-					M.chat_window.messages.bufnr,
-					HIGHLIGHT_NS,
-					"ChatUserBorder",
-					line_num,
-					left_icon_length + label_length,
-					left_icon_length + label_length + right_icon_length
+					label_length,
+					right_icon_length
 				)
 			end
 		end
@@ -350,7 +315,7 @@ local window_restore_messages = function()
 
 	local bufnr = M.chat_window.messages.bufnr
 	local all_lines = {}
-	local highlights = {}
+	local highlight_info = {}
 
 	-- Process all messages and prepare lines with proper labels and icons
 	for i = M.last_displayed_message + 1, #M.message_history do
@@ -371,17 +336,12 @@ local window_restore_messages = function()
 				local label_length = #"  Claude: "
 
 				-- Store highlight information
-				table.insert(highlights, {
+				table.insert(highlight_info, {
 					line_num = line_num,
-					highlights = {
-						{ "ChatClaudeBorder", 0, left_icon_length },
-						{ "ChatClaudeLabel", left_icon_length, left_icon_length + label_length },
-						{
-							"ChatClaudeBorder",
-							left_icon_length + label_length,
-							left_icon_length + label_length + right_icon_length,
-						},
-					},
+					type = "claude",
+					left_icon_length = left_icon_length,
+					label_length = label_length,
+					right_icon_length = right_icon_length,
 				})
 			elseif line:match("^You:") then
 				local label = icons.left_circle .. " You: " .. icons.right_circle
@@ -392,17 +352,12 @@ local window_restore_messages = function()
 				local label_length = #" You: "
 
 				-- Store highlight information
-				table.insert(highlights, {
+				table.insert(highlight_info, {
 					line_num = line_num,
-					highlights = {
-						{ "ChatUserBorder", 0, left_icon_length },
-						{ "ChatUserLabel", left_icon_length, left_icon_length + label_length },
-						{
-							"ChatUserBorder",
-							left_icon_length + label_length,
-							left_icon_length + label_length + right_icon_length,
-						},
-					},
+					type = "user",
+					left_icon_length = left_icon_length,
+					label_length = label_length,
+					right_icon_length = right_icon_length,
 				})
 			else
 				table.insert(all_lines, line)
@@ -414,15 +369,24 @@ local window_restore_messages = function()
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, all_lines)
 
 	-- Apply all highlights
-	for _, hl_info in ipairs(highlights) do
-		for _, hl in ipairs(hl_info.highlights) do
-			vim.api.nvim_buf_add_highlight(
+	for _, hi in ipairs(highlight_info) do
+		if hi.type == "claude" then
+			highlights.add_claude_highlights(
+				hlns,
 				bufnr,
-				HIGHLIGHT_NS,
-				hl[1], -- highlight group
-				hl_info.line_num, -- line number
-				hl[2], -- start col
-				hl[3] -- end col
+				hi.line_num,
+				hi.left_icon_length,
+				hi.label_length,
+				hi.right_icon_length
+			)
+		else -- user
+			highlights.add_user_highlights(
+				hlns,
+				bufnr,
+				hi.line_num,
+				hi.left_icon_length,
+				hi.label_length,
+				hi.right_icon_length
 			)
 		end
 	end

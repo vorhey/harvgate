@@ -28,4 +28,44 @@ M.setup = function(config)
 	})
 end
 
+M.add_claude_highlights = function(ns, bufnr, line_num, left_icon_length, label_length, right_icon_length)
+	vim.api.nvim_buf_add_highlight(bufnr, ns, "ChatClaudeBorder", line_num, 0, label_length)
+	vim.api.nvim_buf_add_highlight(
+		bufnr,
+		ns,
+		"ChatClaudeLabel",
+		line_num,
+		left_icon_length,
+		left_icon_length + label_length
+	)
+	vim.api.nvim_buf_add_highlight(
+		bufnr,
+		ns,
+		"ChatClaudeBorder",
+		line_num,
+		left_icon_length + label_length,
+		left_icon_length + label_length + right_icon_length
+	)
+end
+
+M.add_user_highlights = function(ns, bufnr, line_num, left_icon_length, label_length, right_icon_length)
+	vim.api.nvim_buf_add_highlight(bufnr, ns, "ChatUserBorder", line_num, 0, label_length)
+	vim.api.nvim_buf_add_highlight(
+		bufnr,
+		ns,
+		"ChatUserLabel",
+		line_num,
+		left_icon_length,
+		left_icon_length + label_length
+	)
+	vim.api.nvim_buf_add_highlight(
+		bufnr,
+		ns,
+		"ChatUserBorder",
+		line_num,
+		left_icon_length + label_length,
+		left_icon_length + label_length + right_icon_length
+	)
+end
+
 return M
