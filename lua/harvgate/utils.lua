@@ -105,6 +105,10 @@ local function get_current_distro()
 	return distro_name
 end
 
+function M.is_number(value)
+	return type(value) == "number"
+end
+
 function M.is_distro(distro_names)
 	local current_distro = get_current_distro()
 	if not current_distro then
