@@ -309,7 +309,7 @@ local create_split_layout = function()
 	local input_win = vim.api.nvim_get_current_win()
 	local input_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(input_win, input_buf)
-	vim.cmd("resize 10")
+	vim.cmd("resize 3")
 
 	-- Set window options for input
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
