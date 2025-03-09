@@ -25,6 +25,63 @@ local icons = {
 	right_circle = "",
 }
 
+local function copy_code()
+	local bufnr = M.chat_window.messages.bufnr
+	local winid = M.chat_window.messages.winid
+
+	-- Early return if invalid buffer/window
+	if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+		vim.notify("No active chat window", vim.log.levels.ERROR)
+		return
+	end
+
+	local cursor_line = vim.api.nvim_win_get_cursor(winid)[1]
+
+	-- Use a limited range of lines for efficiency instead of reading entire buffer
+	local search_range = 100 -- Adjust based on your typical code block size
+	local line_count = vim.api.nvim_buf_line_count(bufnr)
+	local start_search = math.max(1, cursor_line - search_range)
+	local end_search = math.min(line_count, cursor_line + search_range)
+
+	local lines = vim.api.nvim_buf_get_lines(bufnr, start_search - 1, end_search, false)
+	local cursor_offset = cursor_line - start_search + 1
+
+	-- Find code block boundaries
+	local start_idx, end_idx = nil, nil
+
+	-- Look backward for start of code block
+	for i = cursor_offset, 1, -1 do
+		if lines[i] and lines[i]:match("^```") then
+			start_idx = i
+			break
+		end
+	end
+
+	-- Early return if no start marker found
+	if not start_idx then
+		vim.notify("No code block found at cursor position", vim.log.levels.WARN)
+		return
+	end
+
+	-- Look forward for end of code block
+	for i = math.max(start_idx + 1, cursor_offset), #lines do
+		if lines[i] and lines[i]:match("^```") then
+			end_idx = i
+			break
+		end
+	end
+
+	-- If we found both boundaries
+	if start_idx and end_idx then
+		local code_content = table.concat(vim.list_slice(lines, start_idx + 1, end_idx - 1), "\n")
+		vim.fn.setreg("+", code_content) -- System clipboard
+		vim.fn.setreg('"', code_content) -- Unnamed register
+		vim.notify("Code block copied to clipboard", vim.log.levels.INFO)
+	else
+		vim.notify("No complete code block found at cursor position", vim.log.levels.WARN)
+	end
+end
+
 ---@param text string Text to append
 ---@param save_history boolean? Save to history (default: true)
 local window_append_text = function(text, save_history)
@@ -479,6 +536,7 @@ local setup_messages_keymaps = function(messages_win)
 	messages_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
 	messages_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
 	messages_win:map("n", keymaps.toggle_zen_mode, toggle_zen_mode, { noremap = true })
+	messages_win:map("n", keymaps.copy_code or "<C-y>", copy_code, { noremap = true })
 end
 
 ---@param session any Chat session

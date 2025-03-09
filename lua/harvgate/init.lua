@@ -23,6 +23,7 @@ local default_config = {
 	keymaps = {
 		new_chat = "<C-g>",
 		toggle_zen_mode = "<C-r>",
+		copy_code = "<C-y>",
 	},
 	highlights = {
 		claude_label_bg = "#423b37",
