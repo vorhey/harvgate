@@ -66,6 +66,7 @@ require('harvgate').setup({
 | `<C-k>` | Focus messages window | Normal |
 | `<C-j>` | Focus input window | Normal |
 | `<C-y>` | Copy code snippet | Normal |
+| `<C-f>` | Go to matching line | Normal |
 | `<C-g>` | Start new conversation | Normal, Insert |
 | `<C-r>` | Toggle Zen Mode | Normal |
 | `q` or `<Esc>` | Close chat window | Normal |

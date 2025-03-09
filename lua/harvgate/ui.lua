@@ -25,6 +25,35 @@ local icons = {
 	right_circle = "",
 }
 
+local function goto_matching_line()
+	local bufnr = M.chat_window.messages.bufnr
+	local winid = M.chat_window.messages.winid
+
+	local cursor_line = vim.api.nvim_win_get_cursor(winid)[1]
+	local line_text = vim.api.nvim_buf_get_lines(bufnr, cursor_line - 1, cursor_line, false)[1]
+
+	local source_lines = vim.api.nvim_buf_get_lines(M.source_buf, 0, -1, false)
+	local source_winid = nil
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_get_buf(win) == M.source_buf then
+			source_winid = win
+			break
+		end
+	end
+
+	if not source_winid then
+		return
+	end
+
+	for i, line in ipairs(source_lines) do
+		if line:match(line_text) then
+			vim.api.nvim_set_current_win(source_winid)
+			vim.api.nvim_win_set_cursor(0, { i, 0 })
+			break
+		end
+	end
+end
+
 local function copy_code()
 	local bufnr = M.chat_window.messages.bufnr
 	local winid = M.chat_window.messages.winid
@@ -537,6 +566,7 @@ local setup_messages_keymaps = function(messages_win)
 	messages_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
 	messages_win:map("n", keymaps.toggle_zen_mode, toggle_zen_mode, { noremap = true })
 	messages_win:map("n", keymaps.copy_code or "<C-y>", copy_code, { noremap = true })
+	messages_win:map("n", keymaps.goto_line or "<C-f>", goto_matching_line, { noremap = true })
 end
 
 ---@param session any Chat session
