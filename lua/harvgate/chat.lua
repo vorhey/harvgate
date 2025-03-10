@@ -160,6 +160,25 @@ Chat.get_all_chats = async.wrap(function(self, cb)
 	cb(decoded_json, nil)
 end, 2)
 
+Chat.get_single_chat = async.wrap(function(self, chat_id, cb)
+	local url = URLBuilder.new():get_single_chat(self.session.organization_id, chat_id)
+	local opts = OptionsBuilder.new(self.session):get_single_chat(chat_id):build()
+
+	local response = curl.get(url, opts)
+
+	if not response then
+		cb(nil, "Async error: Failed to receive response.")
+		return
+	end
+
+	if response.status ~= 200 then
+		cb(nil, string.format("Request failed with status: %d", response.status))
+		return
+	end
+
+	print(vim.inspect(response))
+end, 2)
+
 ---@async
 ---@return table|nil, string|nil The list of all unnamed chats, or nil and an error message if an error occurred
 Chat.get_all_unnamed_chats = async.wrap(function(self, cb)

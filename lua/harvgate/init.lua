@@ -61,6 +61,7 @@ function M.setup(opts)
 	ui.setup(M.config)
 	-- Create user commands
 	vim.api.nvim_create_user_command("HarvgateChat", M.toggle, {})
+	vim.api.nvim_create_user_command("HarvgateListChats", M.list_chats, {})
 end
 
 ---Toggle the Claude chat window
@@ -73,6 +74,18 @@ function M.toggle()
 		return
 	end
 	ui.window_toggle(session)
+end
+
+function M.list_chats()
+	if not session then
+		session = setup_session()
+	end
+	if not session then
+		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+		return
+	end
+
+	ui.list_chats(session)
 end
 
 return M

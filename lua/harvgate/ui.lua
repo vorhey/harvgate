@@ -9,7 +9,7 @@ local M = {}
 M.config = nil
 M.session = nil
 M.chat_window = nil
-M.current_chat = nil
+M.chat = nil
 M.chat_id = nil
 M.is_chat_visible = nil
 M.message_history = {}
@@ -208,10 +208,10 @@ end
 
 ---@param input_text string Message to send
 local chat_send_message = async.void(function(input_text)
-	if not M.current_chat then
+	if not M.chat then
 		local current_file = get_filename()
-		M.current_chat = Chat.new(M.session, current_file)
-		M.chat_id = M.current_chat:create_chat()
+		M.chat = Chat.new(M.session, current_file)
+		M.chat_id = M.chat:create_chat()
 		if not M.chat_id then
 			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
 			return
@@ -232,7 +232,7 @@ local chat_send_message = async.void(function(input_text)
 	async.util.sleep(100) -- Small delay to ensure UI updates
 
 	-- Send message to Claude
-	local response = M.current_chat:send_message(M.chat_id, input_text)
+	local response = M.chat:send_message(M.chat_id, input_text)
 
 	vim.schedule(function()
 		if not response then
@@ -290,8 +290,8 @@ local chat_new_conversation = async.void(function()
 	M.conversation_started = false
 
 	-- Create new chat
-	M.current_chat = Chat.new(M.session, get_filename())
-	M.chat_id = M.current_chat:create_chat()
+	M.chat = Chat.new(M.session, get_filename())
+	M.chat_id = M.chat:create_chat()
 
 	if not M.chat_id then
 		vim.notify("Failed to create new chat conversation", vim.log.levels.ERROR)
@@ -577,7 +577,7 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
-		if not M.source_buf or not M.current_chat then
+		if not M.source_buf or not M.chat then
 			M.source_buf = vim.api.nvim_get_current_buf()
 		end
 
@@ -592,6 +592,42 @@ M.window_toggle = function(session)
 		update_winbar()
 	end)()
 end
+
+M.list_chats = async.void(function(session)
+	vim.print("getting all chats...")
+	local all_chats, err = Chat.new(session, nil):get_all_chats()
+	if err then
+		vim.notify(err, vim.log.levels.ERROR)
+		return
+	end
+
+	local width = 50
+	local height = 25
+
+	local row = math.floor((vim.o.lines - height) / 2)
+	local col = math.floor((vim.o.columns - width) / 2)
+
+	local win_config = {
+		relative = "editor",
+		width = width,
+		height = height,
+		row = row,
+		col = col,
+		style = "minimal",
+		border = "rounded",
+	}
+
+	local buf = vim.api.nvim_create_buf(false, true)
+	local win = vim.api.nvim_open_win(buf, true, win_config)
+
+	for i, chat in ipairs(all_chats) do
+		local chat_id = chat.uuid
+		local chat_name = chat.name
+		vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { chat_name })
+	end
+
+	vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", { noremap = true, silent = true })
+end)
 
 ---@param config Config
 M.setup = function(config)

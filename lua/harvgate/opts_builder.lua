@@ -61,6 +61,13 @@ function OptionsBuilder:get_all_chats()
 	return self
 end
 
+---@return OptionsBuilder
+function OptionsBuilder:get_single_chat(chat_id)
+	self.config.headers["Accept"] = "application/json"
+	self.config.headers["Referer"] = string.format("%s/chat/%s", BASE_URL, chat_id)
+	return self
+end
+
 ---@param payload table
 ---@return OptionsBuilder
 function OptionsBuilder:with_body(payload)
