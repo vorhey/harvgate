@@ -126,4 +126,54 @@ function M.is_distro(distro_names)
 	return false
 end
 
+function M.safe_get(t, structure, default)
+	if t == nil then
+		return default
+	end
+	local current = t
+
+	local function extract_path(struct)
+		local path = {}
+		local current_struct = struct
+
+		while true do
+			if type(current_struct) ~= "table" or next(current_struct) == nil then
+				break
+			end
+
+			local k, v = next(current_struct)
+			table.insert(path, k)
+
+			if type(v) == "table" then
+				if next(v) then
+					local subkey, _ = next(v)
+					if type(subkey) == "string" then
+						table.insert(path, 1)
+					end
+				end
+				current_struct = v
+			else
+				-- Reached a leaf node
+				break
+			end
+		end
+
+		return path
+	end
+
+	local path = extract_path(structure)
+
+	for _, key in ipairs(path) do
+		if type(current) ~= "table" then
+			return default
+		end
+		current = current[key]
+		if current == nil then
+			return default
+		end
+	end
+
+	return current
+end
+
 return M

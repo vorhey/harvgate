@@ -55,12 +55,7 @@ end
 
 ---@return string
 function URLBuilder:get_single_chat(organization_id, chat_id)
-	return string.format(
-		"%s/api/organizations/%s/chat_conversations/%s?tree=True&rendering_mode=messages",
-		self.base_url,
-		organization_id,
-		chat_id
-	)
+	return string.format("%s/api/organizations/%s/chat_conversations/%s", self.base_url, organization_id, chat_id)
 end
 
 return URLBuilder

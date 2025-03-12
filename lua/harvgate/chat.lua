@@ -176,8 +176,15 @@ Chat.get_single_chat = async.wrap(function(self, chat_id, cb)
 		return
 	end
 
-	print(vim.inspect(response))
-end, 2)
+	local success, data = pcall(vim.json.decode, response.body)
+
+	if not success then
+		cb(nil, "Failed to parse response JSON")
+		return
+	end
+
+	cb(data, nil)
+end, 3)
 
 ---@async
 ---@return table|nil, string|nil The list of all unnamed chats, or nil and an error message if an error occurred

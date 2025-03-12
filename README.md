@@ -62,6 +62,7 @@ require('harvgate').setup({
 | Keybinding | Action | Mode |
 |-----------|---------|------|
 | `:HarvgateChat` | Toggle chat window | Command |
+| `:HarvgateListChats` | List chats | Command |
 | `<C-s>` | Send message | Normal, Insert |
 | `<C-k>` | Focus messages window | Normal |
 | `<C-j>` | Focus input window | Normal |
@@ -69,7 +70,7 @@ require('harvgate').setup({
 | `<C-f>` | Go to matching line | Normal |
 | `<C-g>` | Start new conversation | Normal, Insert |
 | `<C-r>` | Toggle Zen Mode | Normal |
-| `q` or `<Esc>` | Close chat window | Normal |
+| `q` or `<Esc>` | Close chat/list window | Normal |
 
 
 ## Contributing

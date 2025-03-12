@@ -594,8 +594,9 @@ M.window_toggle = function(session)
 end
 
 M.list_chats = async.void(function(session)
-	vim.print("getting all chats...")
-	local all_chats, err = Chat.new(session, nil):get_all_chats()
+	M.chat = Chat.new(session, nil)
+	local all_chats, err = M.chat:get_all_chats()
+
 	if err then
 		vim.notify(err, vim.log.levels.ERROR)
 		return
@@ -603,7 +604,6 @@ M.list_chats = async.void(function(session)
 
 	local width = 50
 	local height = 25
-
 	local row = math.floor((vim.o.lines - height) / 2)
 	local col = math.floor((vim.o.columns - width) / 2)
 
@@ -619,14 +619,72 @@ M.list_chats = async.void(function(session)
 
 	local buf = vim.api.nvim_create_buf(false, true)
 	local win = vim.api.nvim_open_win(buf, true, win_config)
+	local chat_id_list = {}
 
 	for i, chat in ipairs(all_chats) do
-		local chat_id = chat.uuid
-		local chat_name = chat.name
-		vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { chat_name })
+		chat_id_list[i] = chat.uuid
+		vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { chat.name })
 	end
 
-	vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", { noremap = true, silent = true })
+	local load_selected_chat = function()
+		async.run(function()
+			local selected_line = vim.api.nvim_win_get_cursor(win)
+			M.chat_id = chat_id_list[selected_line[1]]
+			local chat_data, chat_err = M.chat:get_single_chat(M.chat_id)
+
+			if chat_err then
+				vim.notify("Failed to load chat: " .. chat_err, vim.log.levels.ERROR)
+				return
+			end
+
+			vim.api.nvim_win_close(win, true)
+
+			-- get the first chat message attachment filename
+			local filename = utils.safe_get(chat_data, {
+				chat_messages = {
+					attachments = {
+						file_name = true,
+					},
+				},
+			}, "")
+
+			M.message_history = {}
+			M.last_displayed_message = 0
+
+			for _, msg in ipairs(chat_data.chat_messages) do
+				local formatted_message
+				if msg.sender == "human" then
+					formatted_message = "\nYou: " .. msg.text .. "\n"
+				elseif msg.sender == "assistant" then
+					formatted_message = "Claude:" .. msg.text
+				end
+
+				if formatted_message then
+					table.insert(M.message_history, formatted_message)
+				end
+			end
+
+			if not M.is_visible or not M.chat_window then
+				M.window_toggle(M.session)
+				M.source_buf = nil
+			else
+				window_restore_messages()
+			end
+
+			if filename ~= "" then
+				vim.api.nvim_set_option_value(
+					"winbar",
+					"󱐏 Chat - " .. " " .. filename,
+					{ win = M.chat_window.messages.winid }
+				)
+			end
+
+			vim.notify("Loaded chat: " .. chat_data.name, vim.log.levels.INFO)
+		end)
+	end
+
+	vim.keymap.set("n", "<CR>", load_selected_chat, { buffer = buf })
+	vim.keymap.set("n", "q", "<cmd>close<CR>", { buffer = buf })
 end)
 
 ---@param config Config
