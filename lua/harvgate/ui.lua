@@ -338,7 +338,8 @@ local create_split_layout = function()
 	local input_win = vim.api.nvim_get_current_win()
 	local input_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(input_win, input_buf)
-	vim.cmd("resize 3")
+	local height = M.config.height or 10
+	vim.cmd(string.format("resize %d", height))
 
 	-- Set window options for input
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
@@ -692,6 +693,9 @@ M.setup = function(config)
 	M.config = config
 	if M.config.width and (not utils.is_number(M.config.width) or M.config.width < 40) then
 		vim.notify("Invalid width value should be at least 40, falling back to default", vim.log.levels.WARN)
+	end
+	if M.config.height and (not utils.is_number(M.config.height) or M.config.height > 20) then
+		vim.notify("Invalid height value should be at most 20, falling back to default", vim.log.levels.WARN)
 	end
 	highlights.setup(config)
 end

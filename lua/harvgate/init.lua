@@ -3,6 +3,7 @@
 ---@field organization_id? string Optional organization ID
 ---@field model? string Optional model ID
 ---@field width? number Window width
+---@field height? number Window width
 ---@field keymaps? table Table Keybinding configurations
 ---@field highlights? table Table Highlight configurations
 ---@field icons? table Table Icons configurations
@@ -20,6 +21,7 @@ local default_config = {
 	organization_id = nil,
 	model = nil,
 	width = nil,
+	height = nil,
 	keymaps = {
 		new_chat = "<C-g>",
 		toggle_zen_mode = "<C-r>",
