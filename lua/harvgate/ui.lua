@@ -192,17 +192,19 @@ end
 local update_winbar = function()
 	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
 		local current_file = get_filename()
-		local zen_indicator = M.zen_mode and " [ZEN]" or ""
-		local winbar_text
 		if not current_file then
-			winbar_text = string.format(" %s Chat%s - [No File]", M.config.icons.chat, zen_indicator)
-		else
-			local file_name = vim.fn.fnamemodify(current_file, ":t")
-			local file_icon = get_file_icon(current_file)
-			winbar_text =
-				string.format(" %s Chat%s - [%s %s]", M.config.icons.chat, zen_indicator, file_icon, file_name)
+			return
 		end
-		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+		local zen_indicator = M.zen_mode and " [ZEN]" or ""
+		local winbar_text = string.format(" %s Chat", M.config.icons.chat)
+		local file_name = vim.fn.fnamemodify(current_file, ":t")
+		local file_icon = get_file_icon(current_file)
+		if file_name ~= "" then
+			winbar_text = string.format(" %s Chat%s #%s%s", M.config.icons.chat, zen_indicator, file_icon, file_name)
+			vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+		else
+			vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+		end
 	end
 end
 
@@ -313,18 +315,6 @@ local create_split_layout = function()
 	local messages_win = vim.api.nvim_get_current_win()
 	local messages_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(messages_win, messages_buf)
-
-	-- Add current file to messages window title
-	local winbar_text
-	if not M.source_buf or not vim.api.nvim_buf_is_valid(M.source_buf) then
-		winbar_text = string.format(" %s Chat - [No File]", M.config.icons.chat)
-	else
-		local full_path = vim.api.nvim_buf_get_name(M.source_buf)
-		local file_name = vim.fn.fnamemodify(full_path, ":t")
-		local file_icon = get_file_icon(full_path)
-		winbar_text = string.format(" %s Chat - [%s %s]", M.config.icons.chat, file_icon, file_name)
-	end
-	vim.api.nvim_set_option_value("winbar", winbar_text, { win = messages_win })
 
 	-- Set buffer options for messages
 	vim.api.nvim_set_option_value("filetype", "markdown", { buf = messages_buf })
