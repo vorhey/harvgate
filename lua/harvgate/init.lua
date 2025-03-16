@@ -64,6 +64,18 @@ function M.setup(opts)
 	-- Create user commands
 	vim.api.nvim_create_user_command("HarvgateChat", M.toggle, {})
 	vim.api.nvim_create_user_command("HarvgateListChats", M.list_chats, {})
+	vim.api.nvim_create_user_command("HarvgateListChats", M.list_chats, {})
+	vim.api.nvim_create_user_command("HarvgateAddBuffer", function(opts)
+		local bufnr = opts.args ~= "" and tonumber(opts.args) or vim.api.nvim_get_current_buf()
+		M.add_buffer(bufnr)
+	end, { nargs = "?" })
+	vim.api.nvim_create_user_command("HarvgateRemoveBuffer", function(opts)
+		local bufnr = opts.args ~= "" and tonumber(opts.args) or vim.api.nvim_get_current_buf()
+		M.remove_buffer(bufnr)
+	end, { nargs = "?" })
+	vim.api.nvim_create_user_command("HarvgateListBuffers", function()
+		M.list_buffers()
+	end, {})
 end
 
 ---Toggle the Claude chat window
@@ -88,6 +100,26 @@ function M.list_chats()
 	end
 
 	ui.list_chats(session)
+end
+
+function M.add_buffer(bufnr)
+	if not session then
+		session = setup_session()
+	end
+	if not session then
+		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+		return
+	end
+
+	ui.add_buffer_to_context(bufnr or vim.api.nvim_get_current_buf())
+end
+
+function M.remove_buffer(bufnr)
+	ui.remove_buffer_from_context(bufnr or vim.api.nvim_get_current_buf())
+end
+
+function M.list_buffers()
+	ui.list_context_buffers()
 end
 
 return M

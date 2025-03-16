@@ -17,6 +17,7 @@ M.input_history = {}
 M.source_buf = nil
 M.zen_mode = false
 M.last_displayed_message = 0
+M.context_buffers = {}
 
 local hlns = vim.api.nvim_create_namespace("chat highlights")
 
@@ -191,28 +192,51 @@ end
 
 local update_winbar = function()
 	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
-		local current_file = get_filename()
-		if not current_file then
-			return
-		end
 		local zen_indicator = M.zen_mode and " [ZEN]" or ""
 		local winbar_text = string.format(" %s Chat", M.config.icons.chat)
-		local file_name = vim.fn.fnamemodify(current_file, ":t")
-		local file_icon = get_file_icon(current_file)
-		if file_name ~= "" then
-			winbar_text = string.format(" %s Chat%s #%s%s", M.config.icons.chat, zen_indicator, file_icon, file_name)
-			vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
-		else
-			vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+
+		-- Check if we have any context buffers
+		if #M.context_buffers > 0 then
+			local filenames = {}
+			for _, bufnr in ipairs(M.context_buffers) do
+				if vim.api.nvim_buf_is_valid(bufnr) then
+					local filename = vim.api.nvim_buf_get_name(bufnr)
+					local file_basename = vim.fn.fnamemodify(filename, ":t")
+					if file_basename == "" then
+						file_basename = "[Buffer " .. bufnr .. "]"
+					end
+					local file_icon = get_file_icon(filename)
+					table.insert(filenames, file_icon .. " " .. file_basename)
+				end
+			end
+
+			if #filenames > 0 then
+				winbar_text =
+					string.format(" %s Chat%s: %s", M.config.icons.chat, zen_indicator, table.concat(filenames, ", "))
+			end
 		end
+
+		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
 	end
 end
 
 ---@param input_text string Message to send
 local chat_send_message = async.void(function(input_text)
 	if not M.chat then
-		local current_file = get_filename()
-		M.chat = Chat.new(M.session, current_file)
+		-- Get content from all context buffers
+		local file_contents = {}
+		for _, bufnr in ipairs(M.context_buffers) do
+			if vim.api.nvim_buf_is_valid(bufnr) then
+				local filename = vim.api.nvim_buf_get_name(bufnr)
+				local file_basename = vim.fn.fnamemodify(filename, ":t")
+				if file_basename == "" then
+					file_basename = "[Buffer " .. bufnr .. "]"
+				end
+				file_contents[file_basename] = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+			end
+		end
+
+		M.chat = Chat.new(M.session, nil, file_contents)
 		M.chat_id = M.chat:create_chat()
 		if not M.chat_id then
 			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
@@ -568,9 +592,15 @@ M.window_toggle = function(session)
 			return window_close()
 		end
 
-		if not M.source_buf or not M.chat then
-			M.source_buf = vim.api.nvim_get_current_buf()
+		local current_buf = vim.api.nvim_get_current_buf()
+
+		-- Add current buffer to context if not already there
+		if #M.context_buffers == 0 then
+			M.add_buffer_to_context(current_buf)
 		end
+
+		-- Always use the first context buffer as source
+		M.source_buf = M.context_buffers[1]
 
 		M.zen_mode = false
 		M.chat_window = create_split_layout()
@@ -677,6 +707,93 @@ M.list_chats = async.void(function(session)
 	vim.keymap.set("n", "<CR>", load_selected_chat, { buffer = buf })
 	vim.keymap.set("n", "q", "<cmd>close<CR>", { buffer = buf })
 end)
+
+M.add_buffer_to_context = function(bufnr)
+	if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+		vim.notify("Invalid buffer", vim.log.levels.ERROR)
+		return false
+	end
+
+	-- Check if buffer is already in context
+	for _, buf in ipairs(M.context_buffers) do
+		if buf == bufnr then
+			vim.notify("Buffer already in chat context", vim.log.levels.WARN)
+			return false
+		end
+	end
+
+	-- Add buffer to context
+	table.insert(M.context_buffers, bufnr)
+
+	-- Get buffer name for notification
+	local filename = vim.api.nvim_buf_get_name(bufnr)
+	local file_basename = vim.fn.fnamemodify(filename, ":t")
+	if file_basename == "" then
+		file_basename = "[No Name]"
+	end
+
+	-- Update any open chat window
+	if M.is_visible and M.chat_window then
+		update_winbar()
+	end
+
+	vim.notify("Added buffer: " .. file_basename .. " to chat context", vim.log.levels.INFO)
+	return true
+end
+
+-- Remove a buffer from the context
+M.remove_buffer_from_context = function(bufnr)
+	for i, buf in ipairs(M.context_buffers) do
+		if buf == bufnr then
+			table.remove(M.context_buffers, i)
+
+			-- Get buffer name for notification
+			local filename = vim.api.nvim_buf_get_name(bufnr)
+			local file_basename = vim.fn.fnamemodify(filename, ":t")
+			if file_basename == "" then
+				file_basename = "[No Name]"
+			end
+
+			-- Update any open chat window
+			if M.is_visible and M.chat_window then
+				update_winbar()
+			end
+
+			vim.notify("Removed buffer: " .. file_basename .. " from chat context", vim.log.levels.INFO)
+			return true
+		end
+	end
+
+	vim.notify("Buffer not found in chat context", vim.log.levels.WARN)
+	return false
+end
+
+-- List buffers in context
+M.list_context_buffers = function()
+	if #M.context_buffers == 0 then
+		vim.notify("No buffers in chat context", vim.log.levels.INFO)
+		return
+	end
+
+	local buffer_list = {}
+	for i, bufnr in ipairs(M.context_buffers) do
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			local filename = vim.api.nvim_buf_get_name(bufnr)
+			local file_basename = vim.fn.fnamemodify(filename, ":t")
+			if file_basename == "" then
+				file_basename = "[No Name]"
+			end
+			table.insert(buffer_list, string.format("%d: %s", i, file_basename))
+		else
+			table.insert(buffer_list, string.format("%d: [Invalid Buffer]", i))
+		end
+	end
+
+	vim.api.nvim_echo({ { "\nBuffers in chat context:\n", "Title" } }, false, {})
+	for _, msg in ipairs(buffer_list) do
+		vim.api.nvim_echo({ { msg .. "\n", "Normal" } }, false, {})
+	end
+end
 
 ---@param config Config
 M.setup = function(config)

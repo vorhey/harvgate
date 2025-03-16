@@ -31,15 +31,17 @@ local function parse_stream_data(response)
 end
 
 ---@param session Session The session object containing authentication information
----@param file_path string|nil Optional path to a file to be included in the chat
+---@param file_path string|nil Optional path to a file to be included as primary file
+---@param additional_files table|nil Optional table of additional files {[filename] = content}
 ---@return Chat A new Chat instance
-function Chat.new(session, file_path)
+function Chat.new(session, file_path, additional_files)
 	assert(type(session) == "table" and session.cookie and session.organization_id, "Invalid session object")
 	return setmetatable({
 		session = session,
 		named_chats = {},
-		current_file = file_path,
-		has_sent_file = false,
+		primary_file = file_path,
+		additional_files = additional_files or {},
+		has_sent_files = false,
 	}, Chat)
 end
 
@@ -96,21 +98,35 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		model = self.session.model,
 	}
 
-	-- Attach file if not exists
-	if self.current_file and #self.current_file > 0 and not self.has_sent_file then
-		-- Check if file exists before trying to read it
-		if vim.fn.filereadable(self.current_file) == 1 then
-			local file_content = vim.fn.readfile(self.current_file)
-			if file_content and #file_content > 0 then
-				table.insert(payload.attachments, {
-					file_name = vim.fn.fnamemodify(self.current_file, ":t"),
-					file_type = "",
-					file_size = #file_content,
-					extracted_content = table.concat(file_content, "\n"),
-				})
-				self.has_sent_file = true
+	-- Only attach files on first message
+	if not self.has_sent_files then
+		-- Add primary file if available
+		if self.primary_file and #self.primary_file > 0 then
+			-- Check if file exists before trying to read it
+			if vim.fn.filereadable(self.primary_file) == 1 then
+				local file_content = vim.fn.readfile(self.primary_file)
+				if file_content and #file_content > 0 then
+					table.insert(payload.attachments, {
+						file_name = vim.fn.fnamemodify(self.primary_file, ":t"),
+						file_type = "",
+						file_size = #file_content,
+						extracted_content = table.concat(file_content, "\n"),
+					})
+				end
 			end
 		end
+
+		-- Add additional files from buffers
+		for filename, content in pairs(self.additional_files) do
+			table.insert(payload.attachments, {
+				file_name = filename,
+				file_type = "",
+				file_size = #content,
+				extracted_content = content,
+			})
+		end
+
+		self.has_sent_files = true
 	end
 
 	local url = URLBuilder.new():send_message(self.session.organization_id, chat_id)
@@ -224,6 +240,21 @@ Chat.rename_chat = function(self, chat_id, first_message)
 			})
 		)
 	end, 1)()
+end
+
+-- Add a function to update context by adding more files without creating a new Chat
+---@param additional_files table Table of additional files {[filename] = content}
+function Chat:update_context(additional_files)
+	if not self.additional_files then
+		self.additional_files = {}
+	end
+	if type(additional_files) == "table" then
+		for filename, content in pairs(additional_files) do
+			self.additional_files[filename] = content
+		end
+	end
+	-- Reset the has_sent_files flag to force sending all files on next message
+	self.has_sent_files = false
 end
 
 return Chat
