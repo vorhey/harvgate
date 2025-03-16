@@ -42,6 +42,8 @@ function Chat.new(session, file_path, additional_files)
 		primary_file = file_path,
 		additional_files = additional_files or {},
 		has_sent_files = false,
+		context_updated = false,
+		pending_files = {}, -- Track files that need to be sent
 	}, Chat)
 end
 
@@ -84,6 +86,16 @@ Chat.create_chat = async.wrap(function(self, cb)
 	cb(decoded_json.uuid, nil)
 end, 2)
 
+-- Helper function to create file attachment
+local function create_attachment(filename, content)
+	return {
+		file_name = filename,
+		file_type = "",
+		file_size = #content,
+		extracted_content = type(content) == "table" and table.concat(content, "\n") or content,
+	}
+end
+
 -- Send a message to the chat conversation and return the response.
 ---@async
 ---@param chat_id string The ID of the chat conversation.
@@ -98,35 +110,36 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		model = self.session.model,
 	}
 
-	-- Only attach files on first message
-	if not self.has_sent_files then
-		-- Add primary file if available
-		if self.primary_file and #self.primary_file > 0 then
-			-- Check if file exists before trying to read it
-			if vim.fn.filereadable(self.primary_file) == 1 then
-				local file_content = vim.fn.readfile(self.primary_file)
-				if file_content and #file_content > 0 then
-					table.insert(payload.attachments, {
-						file_name = vim.fn.fnamemodify(self.primary_file, ":t"),
-						file_type = "",
-						file_size = #file_content,
-						extracted_content = table.concat(file_content, "\n"),
-					})
-				end
+	-- Handle file attachments if needed
+	if not self.has_sent_files or self.context_updated then
+		local added_files = {}
+
+		-- Handle primary file
+		if
+			not self.has_sent_files
+			and self.primary_file
+			and #self.primary_file > 0
+			and vim.fn.filereadable(self.primary_file) == 1
+		then
+			local content = vim.fn.readfile(self.primary_file)
+			if content and #content > 0 then
+				local filename = vim.fn.fnamemodify(self.primary_file, ":t")
+				table.insert(payload.attachments, create_attachment(filename, content))
+				added_files[filename] = true
 			end
 		end
 
-		-- Add additional files from buffers
-		for filename, content in pairs(self.additional_files) do
-			table.insert(payload.attachments, {
-				file_name = filename,
-				file_type = "",
-				file_size = #content,
-				extracted_content = content,
-			})
+		-- Handle additional and pending files
+		local files_to_process = not self.has_sent_files and self.additional_files or self.pending_files or {}
+		for filename, content in pairs(files_to_process) do
+			if not added_files[filename] then
+				table.insert(payload.attachments, create_attachment(filename, content))
+			end
 		end
 
 		self.has_sent_files = true
+		self.context_updated = false
+		self.pending_files = {}
 	end
 
 	local url = URLBuilder.new():send_message(self.session.organization_id, chat_id)
@@ -140,7 +153,7 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 					async.run(function()
 						self:rename_chat(chat_id, prompt)
 						self.named_chats[chat_id] = true
-					end)
+					end, function() end)
 				end
 				cb(parse_stream_data(response))
 			end),
@@ -244,17 +257,33 @@ end
 
 -- Add a function to update context by adding more files without creating a new Chat
 ---@param additional_files table Table of additional files {[filename] = content}
-function Chat:update_context(additional_files)
+function Chat:update_context(additional_files, should_merge)
 	if not self.additional_files then
 		self.additional_files = {}
 	end
+
+	-- Add tracking for only files that need to be sent
+	self.pending_files = self.pending_files or {}
+
 	if type(additional_files) == "table" then
+		-- If merging, keep existing files, otherwise clear them
+		if not should_merge then
+			self.additional_files = {}
+			self.pending_files = {}
+		end
+
+		-- Track which files are new and need to be sent
 		for filename, content in pairs(additional_files) do
+			-- If file is new or has changed
+			if not self.additional_files[filename] or self.additional_files[filename] ~= content then
+				self.pending_files[filename] = content
+				self.context_updated = true
+			end
+
+			-- Update/add to additional_files
 			self.additional_files[filename] = content
 		end
 	end
-	-- Reset the has_sent_files flag to force sending all files on next message
-	self.has_sent_files = false
 end
 
 return Chat

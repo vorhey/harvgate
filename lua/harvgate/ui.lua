@@ -222,26 +222,29 @@ end
 
 ---@param input_text string Message to send
 local chat_send_message = async.void(function(input_text)
-	if not M.chat then
-		-- Get content from all context buffers
-		local file_contents = {}
-		for _, bufnr in ipairs(M.context_buffers) do
-			if vim.api.nvim_buf_is_valid(bufnr) then
-				local filename = vim.api.nvim_buf_get_name(bufnr)
-				local file_basename = vim.fn.fnamemodify(filename, ":t")
-				if file_basename == "" then
-					file_basename = "[Buffer " .. bufnr .. "]"
-				end
-				file_contents[file_basename] = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+	-- Get content from all context buffers
+	local file_contents = {}
+	for _, bufnr in ipairs(M.context_buffers) do
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			local filename = vim.api.nvim_buf_get_name(bufnr)
+			local file_basename = vim.fn.fnamemodify(filename, ":t")
+			if file_basename == "" then
+				file_basename = "[Buffer " .. bufnr .. "]"
 			end
+			file_contents[file_basename] = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
 		end
+	end
 
+	if not M.chat then
 		M.chat = Chat.new(M.session, nil, file_contents)
 		M.chat_id = M.chat:create_chat()
 		if not M.chat_id then
 			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
 			return
 		end
+	else
+		-- Update context for existing chat - merge with existing context
+		M.chat:update_context(file_contents, true)
 	end
 
 	-- Store the user message in history
@@ -553,18 +556,18 @@ local setup_input_keymaps = function(input_win)
 		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
 		async.run(function()
 			chat_send_message(input_text)
-		end)
+		end, function() end)
 	end
 
 	input_win:map("n", "<C-s>", function()
 		async.run(function()
 			send_input()
-		end)
+		end, function() end)
 	end, { noremap = true })
 	input_win:map("i", "<C-s>", function()
 		async.run(function()
 			send_input()
-		end)
+		end, function() end)
 	end, { noremap = true })
 end
 
@@ -701,7 +704,7 @@ M.list_chats = async.void(function(session)
 			end
 
 			vim.notify("Loaded chat: " .. chat_data.name, vim.log.levels.INFO)
-		end)
+		end, function() end)
 	end
 
 	vim.keymap.set("n", "<CR>", load_selected_chat, { buffer = buf })
@@ -737,7 +740,25 @@ M.add_buffer_to_context = function(bufnr)
 		update_winbar()
 	end
 
-	vim.notify("Added buffer: " .. file_basename .. " to chat context", vim.log.levels.INFO)
+	if M.chat then
+		-- Get content from the newly added buffer only
+		local file_contents = {}
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			local content = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+			file_contents[file_basename] = content
+
+			-- Update the chat context with just the new file, merging with existing
+			M.chat:update_context(file_contents, true)
+
+			vim.notify(
+				"Added buffer: " .. file_basename .. " to chat context and updated active chat",
+				vim.log.levels.INFO
+			)
+		end
+	else
+		vim.notify("Added buffer: " .. file_basename .. " to chat context", vim.log.levels.INFO)
+	end
+
 	return true
 end
 
