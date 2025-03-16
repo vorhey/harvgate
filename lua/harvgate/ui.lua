@@ -2,41 +2,21 @@ local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
 local highlights = require("harvgate.highlights")
+local state = require("harvgate.state")
 
 local M = {}
 
--- Store the chat instance and current conversation
-M.config = nil
-M.session = nil
-M.chat_window = nil
-M.chat = nil
-M.chat_id = nil
-M.is_chat_visible = nil
-M.message_history = {}
-M.input_history = {}
-M.source_buf = nil
-M.zen_mode = false
-M.last_displayed_message = 0
-M.context_buffers = {}
-
-local hlns = vim.api.nvim_create_namespace("chat highlights")
-
-local icons = {
-	left_circle = "",
-	right_circle = "",
-}
-
 local function goto_matching_line()
-	local bufnr = M.chat_window.messages.bufnr
-	local winid = M.chat_window.messages.winid
+	local bufnr = state.chat_window.messages.bufnr
+	local winid = state.chat_window.messages.winid
 
 	local cursor_line = vim.api.nvim_win_get_cursor(winid)[1]
 	local line_text = vim.api.nvim_buf_get_lines(bufnr, cursor_line - 1, cursor_line, false)[1]
 
-	local source_lines = vim.api.nvim_buf_get_lines(M.source_buf, 0, -1, false)
+	local source_lines = vim.api.nvim_buf_get_lines(state.source_buf, 0, -1, false)
 	local source_winid = nil
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_get_buf(win) == M.source_buf then
+		if vim.api.nvim_win_get_buf(win) == state.source_buf then
 			source_winid = win
 			break
 		end
@@ -56,8 +36,8 @@ local function goto_matching_line()
 end
 
 local function copy_code()
-	local bufnr = M.chat_window.messages.bufnr
-	local winid = M.chat_window.messages.winid
+	local bufnr = state.chat_window.messages.bufnr
+	local winid = state.chat_window.messages.winid
 
 	-- Early return if invalid buffer/window
 	if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
@@ -68,7 +48,7 @@ local function copy_code()
 	local cursor_line = vim.api.nvim_win_get_cursor(winid)[1]
 
 	-- Use a limited range of lines for efficiency instead of reading entire buffer
-	local search_range = 100 -- Adjust based on your typical code block size
+	local search_range = 1000 -- Adjust based on your typical code block size
 	local line_count = vim.api.nvim_buf_line_count(bufnr)
 	local start_search = math.max(1, cursor_line - search_range)
 	local end_search = math.min(line_count, cursor_line + search_range)
@@ -116,50 +96,50 @@ end
 ---@param save_history boolean? Save to history (default: true)
 local window_append_text = function(text, save_history)
 	save_history = save_history ~= false
-	if M.chat_window and M.chat_window.messages.bufnr then
+	if state.chat_window and state.chat_window.messages.bufnr then
 		local lines = vim.split(text, "\n")
 		for i, line in ipairs(lines) do
 			if line:match("^Claude:") then
-				local label = icons.left_circle .. "  Claude: " .. icons.right_circle
+				local label = state.icons.left_circle .. "  Claude: " .. state.icons.right_circle
 				lines[i] = label .. line:sub(8) -- 8 to account for "Claude: "
 			elseif line:match("^You:") then
-				local label = icons.left_circle .. " You: " .. icons.right_circle
+				local label = state.icons.left_circle .. " You: " .. state.icons.right_circle
 				lines[i] = label .. line:sub(5) -- 5 to account for "You: "
 			end
 		end
 		if save_history then
-			table.insert(M.message_history, text)
+			table.insert(state.message_history, text)
 		end
-		local buf_line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
+		local buf_line_count = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
 		local is_first_message = buf_line_count == 1
-			and vim.api.nvim_buf_get_lines(M.chat_window.messages.bufnr, 0, 1, false)[1] == ""
+			and vim.api.nvim_buf_get_lines(state.chat_window.messages.bufnr, 0, 1, false)[1] == ""
 		local start_line = is_first_message and 0 or buf_line_count
 		-- If this is the first message and buffer has only an empty line
 		if is_first_message then
-			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, 1, false, lines)
+			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, 0, 1, false, lines)
 		else
-			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, -1, -1, false, lines)
+			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, -1, -1, false, lines)
 		end
 		for i, line in ipairs(lines) do
 			local line_num = start_line + i - 1
-			local left_icon_length = #icons.left_circle
-			local right_icon_length = #icons.right_circle
-			if line:match(icons.left_circle .. "  Claude:") then
+			local left_icon_length = #state.icons.left_circle
+			local right_icon_length = #state.icons.right_circle
+			if line:match(state.icons.left_circle .. "  Claude:") then
 				local label_length = #"  Claude: "
 				highlights.add_claude_highlights(
-					hlns,
-					M.chat_window.messages.bufnr,
+					state.hlns,
+					state.chat_window.messages.bufnr,
 					line_num,
 					left_icon_length,
 					label_length,
 					right_icon_length
 				)
-			elseif line:match(icons.left_circle .. " You:") then
+			elseif line:match(state.icons.left_circle .. " You:") then
 				local label_length = #" You: "
 
 				highlights.add_user_highlights(
-					hlns,
-					M.chat_window.messages.bufnr,
+					state.hlns,
+					state.chat_window.messages.bufnr,
 					line_num,
 					left_icon_length,
 					label_length,
@@ -168,37 +148,41 @@ local window_append_text = function(text, save_history)
 			end
 		end
 		-- Scroll to bottom
-		local line_count = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-		vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { line_count, 0 })
+		local line_count = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
+		vim.api.nvim_win_set_cursor(state.chat_window.messages.winid, { line_count, 0 })
 	end
 end
 
 local get_filename = function()
-	if M.source_buf and vim.api.nvim_buf_is_valid(M.source_buf) then
-		return vim.api.nvim_buf_get_name(M.source_buf)
+	if state.source_buf and vim.api.nvim_buf_is_valid(state.source_buf) then
+		return vim.api.nvim_buf_get_name(state.source_buf)
 	end
 	return nil
 end
 
 local function get_file_icon(filename)
 	if not filename then
-		return M.config.icons.default_file
+		return state.config.icons.default_file
 	end
 
 	local extension = vim.fn.fnamemodify(filename, ":e")
 	local file_icon, _ = require("nvim-web-devicons").get_icon(filename, extension, { default = true })
-	return file_icon or M.config.icons.default_file
+	return file_icon or state.config.icons.default_file
 end
 
 local update_winbar = function()
-	if M.chat_window and M.chat_window.messages.winid and vim.api.nvim_win_is_valid(M.chat_window.messages.winid) then
-		local zen_indicator = M.zen_mode and " [ZEN]" or ""
-		local winbar_text = string.format(" %s Chat", M.config.icons.chat)
+	if
+		state.chat_window
+		and state.chat_window.messages.winid
+		and vim.api.nvim_win_is_valid(state.chat_window.messages.winid)
+	then
+		local zen_indicator = state.zen_mode and " [ZEN]" or ""
+		local winbar_text = string.format(" %s Chat", state.config.icons.chat)
 
 		-- Check if we have any context buffers
-		if #M.context_buffers > 0 then
+		if #state.context_buffers > 0 then
 			local filenames = {}
-			for _, bufnr in ipairs(M.context_buffers) do
+			for _, bufnr in ipairs(state.context_buffers) do
 				if vim.api.nvim_buf_is_valid(bufnr) then
 					local filename = vim.api.nvim_buf_get_name(bufnr)
 					local file_basename = vim.fn.fnamemodify(filename, ":t")
@@ -211,12 +195,16 @@ local update_winbar = function()
 			end
 
 			if #filenames > 0 then
-				winbar_text =
-					string.format(" %s Chat%s: %s", M.config.icons.chat, zen_indicator, table.concat(filenames, ", "))
+				winbar_text = string.format(
+					" %s Chat%s: %s",
+					state.config.icons.chat,
+					zen_indicator,
+					table.concat(filenames, ", ")
+				)
 			end
 		end
 
-		vim.api.nvim_set_option_value("winbar", winbar_text, { win = M.chat_window.messages.winid })
+		vim.api.nvim_set_option_value("winbar", winbar_text, { win = state.chat_window.messages.winid })
 	end
 end
 
@@ -224,7 +212,7 @@ end
 local chat_send_message = async.void(function(input_text)
 	-- Get content from all context buffers
 	local file_contents = {}
-	for _, bufnr in ipairs(M.context_buffers) do
+	for _, bufnr in ipairs(state.context_buffers) do
 		if vim.api.nvim_buf_is_valid(bufnr) then
 			local filename = vim.api.nvim_buf_get_name(bufnr)
 			local file_basename = vim.fn.fnamemodify(filename, ":t")
@@ -235,25 +223,29 @@ local chat_send_message = async.void(function(input_text)
 		end
 	end
 
-	if not M.chat then
-		M.chat = Chat.new(M.session, nil, file_contents)
-		M.chat_id = M.chat:create_chat()
-		if not M.chat_id then
+	if not state.chat then
+		state.chat = Chat.new(state.session, nil, file_contents)
+		state.chat_id = state.chat:create_chat()
+		if not state.chat_id then
 			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
 			return
 		end
 	else
 		-- Update context for existing chat - merge with existing context
-		M.chat:update_context(file_contents, true)
+		state.chat:update_context(file_contents, true)
 	end
 
 	-- Store the user message in history
 	local trimmed_message = utils.trim_message(input_text)
 	local user_message = "\nYou: " .. trimmed_message .. "\n"
-	table.insert(M.message_history, user_message)
+	table.insert(state.message_history, user_message)
 
 	-- Only update window if it exists
-	if M.chat_window and M.chat_window.messages.bufnr and vim.api.nvim_buf_is_valid(M.chat_window.messages.bufnr) then
+	if
+		state.chat_window
+		and state.chat_window.messages.bufnr
+		and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
+	then
 		window_append_text(user_message, false)
 		window_append_text("Claude: *thinking...*", false)
 	end
@@ -261,7 +253,7 @@ local chat_send_message = async.void(function(input_text)
 	async.util.sleep(100) -- Small delay to ensure UI updates
 
 	-- Send message to Claude
-	local response = M.chat:send_message(M.chat_id, input_text)
+	local response = state.chat:send_message(state.chat_id, input_text)
 
 	vim.schedule(function()
 		if not response then
@@ -274,18 +266,18 @@ local chat_send_message = async.void(function(input_text)
 
 		-- Only update window if it exists and is valid
 		if
-			M.chat_window
-			and M.chat_window.messages.bufnr
-			and vim.api.nvim_buf_is_valid(M.chat_window.messages.bufnr)
+			state.chat_window
+			and state.chat_window.messages.bufnr
+			and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
 		then
 			-- Remove thinking message
-			local last_line = vim.api.nvim_buf_line_count(M.chat_window.messages.bufnr)
-			vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
+			local last_line = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
+			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
 			-- Append actual response
 			window_append_text(claude_response)
 		else
 			-- When window is closed, just store in history WITHOUT calling window_append_text
-			table.insert(M.message_history, claude_response)
+			table.insert(state.message_history, claude_response)
 			vim.notify("Chat response received and stored. Reopen chat to view.", vim.log.levels.INFO)
 		end
 	end)
@@ -293,50 +285,50 @@ end)
 
 ---Close chat window
 local window_close = function()
-	M.chat_window.layout:unmount()
-	M.chat_window = nil
-	M.is_visible = false
-	M.zen_mode = false
-	M.last_displayed_message = 0
+	state.chat_window.layout:unmount()
+	state.chat_window = nil
+	state.is_visible = false
+	state.zen_mode = false
+	state.last_displayed_message = 0
 end
 
 ---Start new conversation
 local chat_new_conversation = async.void(function()
-	if not M.session then
+	if not state.session then
 		vim.notify("No active session", vim.log.levels.ERROR)
 		return
 	end
 
 	-- Clear source_buf
-	M.source_buf = nil
+	state.source_buf = nil
 
 	-- Close and reopen the window to get fresh buffer context
 	window_close()
-	M.window_toggle(M.session)
+	M.window_toggle(state.session)
 
 	-- Clear message history
-	M.message_history = {}
-	M.conversation_started = false
+	state.message_history = {}
+	state.conversation_started = false
 
 	-- Create new chat
-	M.chat = Chat.new(M.session, get_filename())
-	M.chat_id = M.chat:create_chat()
+	state.chat = Chat.new(state.session, get_filename())
+	state.chat_id = state.chat:create_chat()
 
-	if not M.chat_id then
+	if not state.chat_id then
 		vim.notify("Failed to create new chat conversation", vim.log.levels.ERROR)
 		return
 	end
 
 	-- Clear the messages window
-	if M.chat_window and M.chat_window.messages.bufnr then
-		vim.api.nvim_buf_set_lines(M.chat_window.messages.bufnr, 0, -1, false, {})
+	if state.chat_window and state.chat_window.messages.bufnr then
+		vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, 0, -1, false, {})
 	end
 
 	vim.notify("Started new conversation", vim.log.levels.INFO)
 end)
 
 local create_split_layout = function()
-	local width = M.config.width or 60
+	local width = state.config.width or 60
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
 	local messages_win = vim.api.nvim_get_current_win()
@@ -355,14 +347,14 @@ local create_split_layout = function()
 	local input_win = vim.api.nvim_get_current_win()
 	local input_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(input_win, input_buf)
-	local height = M.config.height or 10
+	local height = state.config.height or 10
 	vim.cmd(string.format("resize %d", height))
 
 	-- Set window options for input
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
 	vim.api.nvim_set_option_value("number", false, { win = input_win })
 	vim.api.nvim_set_option_value("relativenumber", false, { win = input_win })
-	local input_winbar = string.format("%s Message Input [Ctrl+S to send]", M.config.icons.input)
+	local input_winbar = string.format("%s Message Input [Ctrl+S to send]", state.config.icons.input)
 	vim.api.nvim_set_option_value("winbar", input_winbar, { win = input_win })
 
 	-- Create wrapper objects that match nui.popup interface
@@ -411,28 +403,28 @@ end
 
 ---Restore message history
 local window_restore_messages = function()
-	if not (M.chat_window and M.chat_window.messages.bufnr) then
+	if not (state.chat_window and state.chat_window.messages.bufnr) then
 		return
 	end
 
 	update_winbar()
 
-	local bufnr = M.chat_window.messages.bufnr
+	local bufnr = state.chat_window.messages.bufnr
 	local all_lines = {}
 	local highlight_info = {}
 
 	-- Process all messages and prepare lines with proper labels and icons
-	for i = M.last_displayed_message + 1, #M.message_history do
-		local msg = M.message_history[i]
+	for i = state.last_displayed_message + 1, #state.message_history do
+		local msg = state.message_history[i]
 		local start_line = #all_lines
 		local lines = vim.split(msg, "\n")
 
 		for j, line in ipairs(lines) do
-			local left_icon_length = #icons.left_circle
-			local right_icon_length = #icons.right_circle
+			local left_icon_length = #state.icons.left_circle
+			local right_icon_length = #state.icons.right_circle
 
 			if line:match("^Claude:") then
-				local label = icons.left_circle .. "  Claude: " .. icons.right_circle
+				local label = state.icons.left_circle .. "  Claude: " .. state.icons.right_circle
 				local modified_line = label .. line:sub(8) -- 8 to account for "Claude: "
 				table.insert(all_lines, modified_line)
 
@@ -448,7 +440,7 @@ local window_restore_messages = function()
 					right_icon_length = right_icon_length,
 				})
 			elseif line:match("^You:") then
-				local label = icons.left_circle .. " You: " .. icons.right_circle
+				local label = state.icons.left_circle .. " You: " .. state.icons.right_circle
 				local modified_line = label .. line:sub(5) -- 5 to account for "You: "
 				table.insert(all_lines, modified_line)
 
@@ -476,7 +468,7 @@ local window_restore_messages = function()
 	for _, hi in ipairs(highlight_info) do
 		if hi.type == "claude" then
 			highlights.add_claude_highlights(
-				hlns,
+				state.hlns,
 				bufnr,
 				hi.line_num,
 				hi.left_icon_length,
@@ -485,7 +477,7 @@ local window_restore_messages = function()
 			)
 		else -- user
 			highlights.add_user_highlights(
-				hlns,
+				state.hlns,
 				bufnr,
 				hi.line_num,
 				hi.left_icon_length,
@@ -495,26 +487,32 @@ local window_restore_messages = function()
 		end
 	end
 
-	M.last_displayed_message = #M.message_history
+	state.last_displayed_message = #state.message_history
 
 	-- Restore input history if exists
-	if #M.input_history > 0 then
-		vim.api.nvim_buf_set_lines(M.chat_window.input.bufnr, 0, -1, false, M.input_history[#M.input_history])
+	if #state.input_history > 0 then
+		vim.api.nvim_buf_set_lines(
+			state.chat_window.input.bufnr,
+			0,
+			-1,
+			false,
+			state.input_history[#state.input_history]
+		)
 	end
 
 	-- Scroll to bottom
 	local line_count = vim.api.nvim_buf_line_count(bufnr)
-	vim.api.nvim_win_set_cursor(M.chat_window.messages.winid, { line_count, 0 })
+	vim.api.nvim_win_set_cursor(state.chat_window.messages.winid, { line_count, 0 })
 end
 
 local function toggle_zen_mode()
-	M.zen_mode = not M.zen_mode
+	state.zen_mode = not state.zen_mode
 
-	if M.chat_window and M.chat_window.messages.bufnr then
-		local bufnr = M.chat_window.messages.bufnr
+	if state.chat_window and state.chat_window.messages.bufnr then
+		local bufnr = state.chat_window.messages.bufnr
 		local all_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
-		if M.zen_mode then
+		if state.zen_mode then
 			-- Extract only code blocks
 			local zen_lines = {}
 			local in_code_block = false
@@ -539,11 +537,11 @@ end
 
 local setup_input_keymaps = function(input_win)
 	utils.buffer_autocmd(input_win.bufnr, window_close)
-	local keymaps = M.config.keymaps or {}
+	local keymaps = state.config.keymaps or {}
 	local new_chat = async.void(function()
 		chat_new_conversation()
 	end)
-	input_win:map("n", "<C-k>", M.chat_window.focus_messages, { noremap = true })
+	input_win:map("n", "<C-k>", state.chat_window.focus_messages, { noremap = true })
 	input_win:map("n", "<Esc>", window_close, { noremap = true })
 	input_win:map("n", "q", window_close, { noremap = true })
 	input_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
@@ -573,11 +571,11 @@ end
 
 local setup_messages_keymaps = function(messages_win)
 	utils.buffer_autocmd(messages_win.bufnr, window_close)
-	local keymaps = M.config.keymaps or {}
+	local keymaps = state.config.keymaps or {}
 	local new_chat = async.void(function()
 		chat_new_conversation()
 	end)
-	messages_win:map("n", "<C-j>", M.chat_window.focus_input, { noremap = true })
+	messages_win:map("n", "<C-j>", state.chat_window.focus_input, { noremap = true })
 	messages_win:map("n", "<Esc>", window_close, { noremap = true })
 	messages_win:map("n", "q", window_close, { noremap = true })
 	messages_win:map("n", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
@@ -590,36 +588,36 @@ end
 ---@param session any Chat session
 M.window_toggle = function(session)
 	async.void(function()
-		M.session = session
-		if M.is_visible and M.chat_window then
+		state.session = session
+		if state.is_visible and state.chat_window then
 			return window_close()
 		end
 
 		local current_buf = vim.api.nvim_get_current_buf()
 
 		-- Add current buffer to context if not already there
-		if #M.context_buffers == 0 then
+		if #state.context_buffers == 0 then
 			M.add_buffer_to_context(current_buf)
 		end
 
 		-- Always use the first context buffer as source
-		M.source_buf = M.context_buffers[1]
+		state.source_buf = state.context_buffers[1]
 
-		M.zen_mode = false
-		M.chat_window = create_split_layout()
+		state.zen_mode = false
+		state.chat_window = create_split_layout()
 		window_restore_messages()
-		setup_input_keymaps(M.chat_window.input)
-		setup_messages_keymaps(M.chat_window.messages)
+		setup_input_keymaps(state.chat_window.input)
+		setup_messages_keymaps(state.chat_window.messages)
 
-		M.chat_window.layout:mount()
-		M.is_visible = true
+		state.chat_window.layout:mount()
+		state.is_visible = true
 		update_winbar()
 	end)()
 end
 
 M.list_chats = async.void(function(session)
-	M.chat = Chat.new(session, nil)
-	local all_chats, err = M.chat:get_all_chats()
+	state.chat = Chat.new(session, nil)
+	local all_chats, err = state.chat:get_all_chats()
 
 	if err then
 		vim.notify(err, vim.log.levels.ERROR)
@@ -653,8 +651,8 @@ M.list_chats = async.void(function(session)
 	local load_selected_chat = function()
 		async.run(function()
 			local selected_line = vim.api.nvim_win_get_cursor(win)
-			M.chat_id = chat_id_list[selected_line[1]]
-			local chat_data, chat_err = M.chat:get_single_chat(M.chat_id)
+			state.chat_id = chat_id_list[selected_line[1]]
+			local chat_data, chat_err = state.chat:get_single_chat(state.chat_id)
 
 			if chat_err then
 				vim.notify("Failed to load chat: " .. chat_err, vim.log.levels.ERROR)
@@ -672,8 +670,8 @@ M.list_chats = async.void(function(session)
 				},
 			}, "")
 
-			M.message_history = {}
-			M.last_displayed_message = 0
+			state.message_history = {}
+			state.last_displayed_message = 0
 
 			for _, msg in ipairs(chat_data.chat_messages) do
 				local formatted_message
@@ -684,13 +682,13 @@ M.list_chats = async.void(function(session)
 				end
 
 				if formatted_message then
-					table.insert(M.message_history, formatted_message)
+					table.insert(state.message_history, formatted_message)
 				end
 			end
 
-			if not M.is_visible or not M.chat_window then
-				M.window_toggle(M.session)
-				M.source_buf = nil
+			if not state.is_visible or not state.chat_window then
+				M.window_toggle(state.session)
+				state.source_buf = nil
 			else
 				window_restore_messages()
 			end
@@ -699,7 +697,7 @@ M.list_chats = async.void(function(session)
 				vim.api.nvim_set_option_value(
 					"winbar",
 					"󱐏 Chat - " .. " " .. filename,
-					{ win = M.chat_window.messages.winid }
+					{ win = state.chat_window.messages.winid }
 				)
 			end
 
@@ -718,7 +716,7 @@ M.add_buffer_to_context = function(bufnr)
 	end
 
 	-- Check if buffer is already in context
-	for _, buf in ipairs(M.context_buffers) do
+	for _, buf in ipairs(state.context_buffers) do
 		if buf == bufnr then
 			vim.notify("Buffer already in chat context", vim.log.levels.WARN)
 			return false
@@ -726,7 +724,7 @@ M.add_buffer_to_context = function(bufnr)
 	end
 
 	-- Add buffer to context
-	table.insert(M.context_buffers, bufnr)
+	table.insert(state.context_buffers, bufnr)
 
 	-- Get buffer name for notification
 	local filename = vim.api.nvim_buf_get_name(bufnr)
@@ -736,11 +734,11 @@ M.add_buffer_to_context = function(bufnr)
 	end
 
 	-- Update any open chat window
-	if M.is_visible and M.chat_window then
+	if state.is_visible and state.chat_window then
 		update_winbar()
 	end
 
-	if M.chat then
+	if state.chat then
 		-- Get content from the newly added buffer only
 		local file_contents = {}
 		if vim.api.nvim_buf_is_valid(bufnr) then
@@ -748,7 +746,7 @@ M.add_buffer_to_context = function(bufnr)
 			file_contents[file_basename] = content
 
 			-- Update the chat context with just the new file, merging with existing
-			M.chat:update_context(file_contents, true)
+			state.chat:update_context(file_contents, true)
 
 			vim.notify(
 				"Added buffer: " .. file_basename .. " to chat context and updated active chat",
@@ -764,9 +762,9 @@ end
 
 -- Remove a buffer from the context
 M.remove_buffer_from_context = function(bufnr)
-	for i, buf in ipairs(M.context_buffers) do
+	for i, buf in ipairs(state.context_buffers) do
 		if buf == bufnr then
-			table.remove(M.context_buffers, i)
+			table.remove(state.context_buffers, i)
 
 			-- Get buffer name for notification
 			local filename = vim.api.nvim_buf_get_name(bufnr)
@@ -776,7 +774,7 @@ M.remove_buffer_from_context = function(bufnr)
 			end
 
 			-- Update any open chat window
-			if M.is_visible and M.chat_window then
+			if state.is_visible and state.chat_window then
 				update_winbar()
 			end
 
@@ -791,13 +789,13 @@ end
 
 -- List buffers in context
 M.list_context_buffers = function()
-	if #M.context_buffers == 0 then
+	if #state.context_buffers == 0 then
 		vim.notify("No buffers in chat context", vim.log.levels.INFO)
 		return
 	end
 
 	local buffer_list = {}
-	for i, bufnr in ipairs(M.context_buffers) do
+	for i, bufnr in ipairs(state.context_buffers) do
 		if vim.api.nvim_buf_is_valid(bufnr) then
 			local filename = vim.api.nvim_buf_get_name(bufnr)
 			local file_basename = vim.fn.fnamemodify(filename, ":t")
@@ -818,11 +816,11 @@ end
 
 ---@param config Config
 M.setup = function(config)
-	M.config = config
-	if M.config.width and (not utils.is_number(M.config.width) or M.config.width < 40) then
+	state.config = config
+	if state.config.width and (not utils.is_number(state.config.width) or state.config.width < 40) then
 		vim.notify("Invalid width value should be at least 40, falling back to default", vim.log.levels.WARN)
 	end
-	if M.config.height and (not utils.is_number(M.config.height) or M.config.height > 20) then
+	if state.config.height and (not utils.is_number(state.config.height) or state.config.height > 20) then
 		vim.notify("Invalid height value should be at most 20, falling back to default", vim.log.levels.WARN)
 	end
 	highlights.setup(config)
