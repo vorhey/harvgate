@@ -10,28 +10,95 @@ local function goto_matching_line()
 	local bufnr = state.chat_window.messages.bufnr
 	local winid = state.chat_window.messages.winid
 
-	local cursor_line = vim.api.nvim_win_get_cursor(winid)[1]
-	local line_text = vim.api.nvim_buf_get_lines(bufnr, cursor_line - 1, cursor_line, false)[1]
-
-	local source_lines = vim.api.nvim_buf_get_lines(state.source_buf, 0, -1, false)
-	local source_winid = nil
-	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_get_buf(win) == state.source_buf then
-			source_winid = win
-			break
-		end
-	end
-
-	if not source_winid then
+	if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+		vim.notify("No active chat window", vim.log.levels.ERROR)
 		return
 	end
 
+	-- Get the line under cursor in the chat window
+	local cursor_pos = vim.api.nvim_win_get_cursor(winid)
+	if not cursor_pos then
+		vim.notify("No cursor position found", vim.log.levels.ERROR)
+		return
+	end
+	local cursor_line = cursor_pos[1]
+	local line_text = vim.api.nvim_buf_get_lines(bufnr, cursor_line - 1, cursor_line, false)[1]
+
+	if not line_text then
+		vim.notify("No line text found", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Find the source window/buffer
+	local source_buf
+	local source_winid
+
+	-- First try to use the source buffer if set
+	if state.source_buf and vim.api.nvim_buf_is_valid(state.source_buf) then
+		source_buf = state.source_buf
+		-- Find window displaying the source buffer
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			if vim.api.nvim_win_get_buf(win) == source_buf then
+				source_winid = win
+				break
+			end
+		end
+	end
+
+	-- If no source buffer/window found yet, try to find any non-chat window
+	if not source_winid then
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			local win_buf = vim.api.nvim_win_get_buf(win)
+			if win_buf ~= bufnr and win_buf ~= state.chat_window.input.bufnr then
+				source_winid = win
+				source_buf = win_buf
+				break
+			end
+		end
+	end
+
+	if not source_winid or not source_buf then
+		vim.notify("No source window found", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Get all lines from the source buffer
+	local source_lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
+	if #source_lines == 0 then
+		vim.notify("Source buffer is empty", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Trim text
+	local clean_line_text = vim.trim(line_text)
+
+	-- Look for a match in the source buffer
+	local match_found = false
 	for i, line in ipairs(source_lines) do
-		if line:match(line_text) then
+		-- Try exact match first
+		if line == clean_line_text then
 			vim.api.nvim_set_current_win(source_winid)
-			vim.api.nvim_win_set_cursor(0, { i, 0 })
+			vim.api.nvim_win_set_cursor(source_winid, { i, 0 })
+			match_found = true
 			break
 		end
+	end
+
+	-- If no exact match, try partial match
+	if not match_found and #clean_line_text > 0 then
+		local pattern = vim.pesc(clean_line_text)
+		for i, line in ipairs(source_lines) do
+			if line:match(pattern) then
+				vim.api.nvim_set_current_win(source_winid)
+				vim.api.nvim_win_set_cursor(source_winid, { i, 0 })
+				match_found = true
+				break
+			end
+		end
+	end
+
+	if not match_found then
+		vim.notify("No matching line found in source buffer", vim.log.levels.WARN)
 	end
 end
 
