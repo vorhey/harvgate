@@ -536,6 +536,39 @@ local function toggle_zen_mode()
 	end
 end
 
+local function open_completion_opts(bufnr)
+	local items = {
+		{ word = "#codebase" },
+	}
+	vim.bo[bufnr].omnifunc = "v:lua.HarvgateCompletion"
+	_G.HarvgateCompletion = function(findstart, base)
+		if findstart == 1 then
+			-- Find start of the word
+			local line = vim.api.nvim_get_current_line()
+			local col = vim.api.nvim_win_get_cursor(0)[2]
+			local start = col
+			while start > 0 and line:sub(start, start):match("[%w#]") do
+				start = start - 1
+			end
+			return start
+		else
+			-- Find matching items
+			local results = {}
+			base = base or ""
+			for _, item in ipairs(items) do
+				if vim.startswith(item.word, base) then
+					table.insert(results, item)
+				end
+			end
+			return results
+		end
+	end
+end
+
+local add_codebase = function()
+	vim.notify("Adding codebase", vim.log.levels.INFO)
+end
+
 local setup_input_keymaps = function(input_win)
 	utils.buffer_autocmd(input_win.bufnr, window_close)
 	local keymaps = state.config.keymaps or {}
@@ -549,9 +582,22 @@ local setup_input_keymaps = function(input_win)
 	input_win:map("i", keymaps.new_chat or "<C-g>", new_chat, { noremap = true })
 	input_win:map("n", keymaps.toggle_zen_mode, toggle_zen_mode, { noremap = true })
 
+	input_win:map("i", "#", function()
+		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("#", true, false, true), "n", false)
+		vim.schedule(function()
+			open_completion_opts(input_win.bufnr)
+			vim.api.nvim_command('call feedkeys("\\<C-x>\\<C-o>")')
+		end)
+	end, { noremap = true })
+
 	local function send_input()
 		local lines = vim.api.nvim_buf_get_lines(input_win.bufnr, 0, -1, false)
 		local input_text = table.concat(lines, "\n")
+
+		if input_text:match("#codebase") then
+			add_codebase()
+		end
+
 		vim.api.nvim_buf_set_lines(input_win.bufnr, 0, -1, false, { "" })
 		async.run(function()
 			chat_send_message(input_text)
