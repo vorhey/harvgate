@@ -149,13 +149,33 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 		url,
 		vim.tbl_extend("force", opts, {
 			callback = vim.schedule_wrap(function(response)
+				if not response then
+					cb(nil, "Failed to receive response")
+					return
+				end
+				if response.status ~= 200 then
+					local err_msg = string.format("Request failed with status: %d", response.status)
+					if response.body then
+						local ok, decoded = pcall(vim.json.decode, response.body)
+						if ok and decoded.message then
+							err_msg = err_msg .. " - " .. decoded.message
+						end
+					end
+					cb(nil, err_msg)
+					return
+				end
 				if not self.named_chats[chat_id] then
 					async.run(function()
 						self:rename_chat(chat_id, prompt)
 						self.named_chats[chat_id] = true
 					end, function() end)
 				end
-				cb(parse_stream_data(response))
+				local parsed = parse_stream_data(response)
+				if not parsed then
+					cb(nil, "Failed to parse response data")
+					return
+				end
+				cb(parsed, nil)
 			end),
 		})
 	)

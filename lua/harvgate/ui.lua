@@ -253,12 +253,12 @@ local chat_send_message = async.void(function(input_text)
 	async.util.sleep(100) -- Small delay to ensure UI updates
 
 	-- Send message to Claude
-	local response = state.chat:send_message(state.chat_id, input_text)
+	local response, error_msg = state.chat:send_message(state.chat_id, input_text)
 
 	vim.schedule(function()
 		if not response then
-			vim.notify("Error sending message: " .. tostring(response), vim.log.levels.ERROR)
-			return
+			local error_text = error_msg or "Unknown error"
+			vim.notify("Error sending message: " .. error_text, vim.log.levels.ERROR)
 		end
 
 		-- Store Claude's response in history
