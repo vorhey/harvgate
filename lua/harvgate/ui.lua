@@ -301,6 +301,7 @@ local chat_new_conversation = async.void(function()
 
 	-- Clear source_buf
 	state.source_buf = nil
+	state.context_buffers = {}
 
 	-- Close and reopen the window to get fresh buffer context
 	window_close()
