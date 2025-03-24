@@ -307,7 +307,7 @@ local chat_send_message = async.void(function(input_text)
 	local user_message = "\nYou: " .. trimmed_message .. "\n"
 	table.insert(state.message_history, user_message)
 
-	-- Only update window if it exists
+	-- Update UI to show user message and thinking indicator
 	if
 		state.chat_window
 		and state.chat_window.messages.bufnr
@@ -323,27 +323,55 @@ local chat_send_message = async.void(function(input_text)
 	local response, error_msg = state.chat:send_message(state.chat_id, input_text)
 
 	vim.schedule(function()
-		if not response then
-			local error_text = error_msg or "Unknown error"
-			vim.notify("Error sending message: " .. error_text, vim.log.levels.ERROR)
-		end
-
-		-- Store Claude's response in history
-		local claude_response = "Claude:" .. response
-
-		-- Only update window if it exists and is valid
+		-- Remove thinking message regardless of response success
 		if
 			state.chat_window
 			and state.chat_window.messages.bufnr
 			and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
 		then
-			-- Remove thinking message
 			local last_line = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
 			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, last_line - 1, last_line, false, {})
-			-- Append actual response
+		end
+
+		if not response then
+			-- Enhanced error handling
+			local error_text = error_msg or "Unknown error occurred while communicating with Claude"
+
+			-- Log detailed error for debugging
+			vim.api.nvim_err_writeln("Harvgate error: " .. error_text)
+
+			-- Show user-friendly error message in chat window
+			local error_message = "Claude: *Error: "
+				.. error_text
+				.. "*\n"
+				.. "Please check your connection and try again."
+
+			if
+				state.chat_window
+				and state.chat_window.messages.bufnr
+				and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
+			then
+				window_append_text(error_message)
+			else
+				-- Store error in history even if window is closed
+				table.insert(state.message_history, error_message)
+			end
+
+			-- Show notification
+			vim.notify("Error sending message: " .. error_text, vim.log.levels.ERROR)
+			return
+		end
+
+		-- Process successful response (existing code)
+		local claude_response = "Claude:" .. response
+
+		if
+			state.chat_window
+			and state.chat_window.messages.bufnr
+			and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
+		then
 			window_append_text(claude_response)
 		else
-			-- When window is closed, just store in history WITHOUT calling window_append_text
 			table.insert(state.message_history, claude_response)
 			vim.notify("Chat response received and stored. Reopen chat to view.", vim.log.levels.INFO)
 		end
