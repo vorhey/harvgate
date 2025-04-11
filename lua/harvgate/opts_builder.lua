@@ -95,7 +95,7 @@ function OptionsBuilder:build()
 		curl_opts.raw = { "--tlsv1.3", "--ipv4" }
 	end
 
-	if utils.is_distro({ "ubuntu", "debian", "Pop!_OS" }) then
+	if utils.is_distro({ "ubuntu", "debian", "Pop!_OS", "Linux Mint" }) then
 		curl_opts.http_version = "HTTP/2"
 		curl_opts.raw = { "--tlsv1.3", "--ipv4" }
 	end
