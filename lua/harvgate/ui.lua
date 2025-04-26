@@ -787,7 +787,8 @@ M.list_chats = async.void(function(session)
 
 	for i, chat in ipairs(all_chats) do
 		chat_id_list[i] = chat.uuid
-		vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { chat.name })
+		local chat_name = chat.name:gsub("\n", " ")
+		vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { chat_name })
 	end
 
 	local load_selected_chat = function()
