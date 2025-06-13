@@ -337,9 +337,6 @@ local chat_send_message = async.void(function(input_text)
 			-- Enhanced error handling
 			local error_text = error_msg or "Unknown error occurred while communicating with Claude"
 
-			-- Log detailed error for debugging
-			vim.api.nvim_err_writeln("Harvgate error: " .. error_text)
-
 			-- Show user-friendly error message in chat window
 			local error_message = "Claude: *Error: "
 				.. error_text
