@@ -17,13 +17,6 @@ function M.check()
 		error("plenary.nvim not installed")
 	end
 
-	local has_nui, _ = pcall(require, "nui.popup")
-	if has_nui then
-		ok("nui.nvim installed")
-	else
-		error("nui.nvim not installed")
-	end
-
 	local env_cookie = os.getenv("CLAUDE_COOKIE")
 	if env_cookie then
 		warn(
