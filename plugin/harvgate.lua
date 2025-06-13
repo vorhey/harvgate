@@ -1,5 +1,7 @@
 if vim.fn.has("nvim-0.7.0") == 0 then
-	vim.api.nvim_err_writeln("harvgate requires at least nvim-0.7.0")
+	vim.api.nvim_echo({
+		{ "harvgate requires at least nvim-0.7.0", "ErrorMsg" },
+	}, true, { err = true })
 	return
 end
 
