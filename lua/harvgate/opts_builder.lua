@@ -16,23 +16,27 @@ local BASE_URL = "https://claude.ai"
 ---@param session Session
 ---@return OptionsBuilder
 function OptionsBuilder.new(session)
+	local headers = {
+		["Host"] = "claude.ai",
+		["User-Agent"] = session.user_agent,
+		["Accept-Language"] = "en-US,en;q=0.5",
+		["Origin"] = BASE_URL,
+		["DNT"] = "1",
+		["Sec-Fetch-Dest"] = "empty",
+		["Sec-Fetch-Mode"] = "cors",
+		["Sec-Fetch-Site"] = "same-origin",
+		["Connection"] = "keep-alive",
+		["Cookie"] = session.cookie,
+		["TE"] = "trailers",
+	}
+	if vim.fn.has("win32") == 1 then
+		headers["Accept-Encoding"] = "identity"
+	end
+
 	return setmetatable({
 		session = session,
 		config = {
-			headers = {
-				["Host"] = "claude.ai",
-				["User-Agent"] = session.user_agent,
-				["Accept-Language"] = "en-US,en;q=0.5",
-				["Accept-Encoding"] = "gzip, deflate",
-				["Origin"] = BASE_URL,
-				["DNT"] = "1",
-				["Sec-Fetch-Dest"] = "empty",
-				["Sec-Fetch-Mode"] = "cors",
-				["Sec-Fetch-Site"] = "same-origin",
-				["Connection"] = "keep-alive",
-				["Cookie"] = session.cookie,
-				["TE"] = "trailers",
-			},
+			headers = headers,
 		},
 	}, OptionsBuilder)
 end
