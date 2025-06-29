@@ -520,6 +520,7 @@ local function toggle_zen_mode()
 			vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, zen_lines)
 		else
 			-- Restore full chat history
+			state.last_displayed_message = 0
 			window_restore_messages()
 		end
 		update_winbar()
