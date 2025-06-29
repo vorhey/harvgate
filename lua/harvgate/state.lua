@@ -20,13 +20,4 @@ M.context_buffers = {}
 -- UI state
 M.zen_mode = false
 
--- Highlight namespace
-M.hlns = vim.api.nvim_create_namespace("chat highlights")
-
--- Icons
-M.icons = {
-	left_circle = "",
-	right_circle = "",
-}
-
 return M

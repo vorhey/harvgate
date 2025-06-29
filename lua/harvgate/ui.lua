@@ -1,7 +1,6 @@
 local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
-local highlights = require("harvgate.highlights")
 local state = require("harvgate.state")
 
 local M = {}
@@ -165,54 +164,16 @@ local window_append_text = function(text, save_history)
 	save_history = save_history ~= false
 	if state.chat_window and state.chat_window.messages.bufnr then
 		local lines = vim.split(text, "\n")
-		for i, line in ipairs(lines) do
-			if line:match("^Claude:") then
-				local label = state.icons.left_circle .. "  Claude: " .. state.icons.right_circle
-				lines[i] = label .. line:sub(8) -- 8 to account for "Claude: "
-			elseif line:match("^You:") then
-				local label = state.icons.left_circle .. " You: " .. state.icons.right_circle
-				lines[i] = label .. line:sub(5) -- 5 to account for "You: "
-			end
-		end
 		if save_history then
 			table.insert(state.message_history, text)
 		end
 		local buf_line_count = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
 		local is_first_message = buf_line_count == 1
 			and vim.api.nvim_buf_get_lines(state.chat_window.messages.bufnr, 0, 1, false)[1] == ""
-		local start_line = is_first_message and 0 or buf_line_count
-		-- If this is the first message and buffer has only an empty line
 		if is_first_message then
 			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, 0, 1, false, lines)
 		else
 			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, -1, -1, false, lines)
-		end
-		for i, line in ipairs(lines) do
-			local line_num = start_line + i - 1
-			local left_icon_length = #state.icons.left_circle
-			local right_icon_length = #state.icons.right_circle
-			if line:match(state.icons.left_circle .. "  Claude:") then
-				local label_length = #"  Claude: "
-				highlights.add_claude_highlights(
-					state.hlns,
-					state.chat_window.messages.bufnr,
-					line_num,
-					left_icon_length,
-					label_length,
-					right_icon_length
-				)
-			elseif line:match(state.icons.left_circle .. " You:") then
-				local label_length = #" You: "
-
-				highlights.add_user_highlights(
-					state.hlns,
-					state.chat_window.messages.bufnr,
-					line_num,
-					left_icon_length,
-					label_length,
-					right_icon_length
-				)
-			end
 		end
 		-- Scroll to bottom
 		local line_count = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
@@ -229,12 +190,12 @@ end
 
 local function get_file_icon(filename)
 	if not filename then
-		return state.config.icons.default_file
+		return ""
 	end
 
 	local extension = vim.fn.fnamemodify(filename, ":e")
 	local file_icon, _ = require("nvim-web-devicons").get_icon(filename, extension, { default = true })
-	return file_icon or state.config.icons.default_file
+	return file_icon or ""
 end
 
 local update_winbar = function()
@@ -244,7 +205,7 @@ local update_winbar = function()
 		and vim.api.nvim_win_is_valid(state.chat_window.messages.winid)
 	then
 		local zen_indicator = state.zen_mode and " [ZEN]" or ""
-		local winbar_text = string.format(" %s Chat", state.config.icons.chat)
+		local winbar_text = "Chat"
 
 		-- Check if we have any context buffers
 		if #state.context_buffers > 0 then
@@ -257,14 +218,17 @@ local update_winbar = function()
 						file_basename = "[Buffer " .. bufnr .. "]"
 					end
 					local file_icon = get_file_icon(filename)
-					table.insert(filenames, file_icon .. " " .. file_basename)
+					if file_icon ~= "" then
+						table.insert(filenames, file_icon .. " " .. file_basename)
+					else
+						table.insert(filenames, file_basename)
+					end
 				end
 			end
 
 			if #filenames > 0 then
 				winbar_text = string.format(
-					" %s Chat%s: %s",
-					state.config.icons.chat,
+					"Chat%s: %s",
 					zen_indicator,
 					table.concat(filenames, ", ")
 				)
@@ -360,7 +324,7 @@ local chat_send_message = async.void(function(input_text)
 		end
 
 		-- Process successful response (existing code)
-		local claude_response = "Claude:" .. response
+		local claude_response = " Claude:" .. response
 
 		if
 			state.chat_window
@@ -447,7 +411,7 @@ local create_split_layout = function()
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
 	vim.api.nvim_set_option_value("number", false, { win = input_win })
 	vim.api.nvim_set_option_value("relativenumber", false, { win = input_win })
-	local input_winbar = string.format("%s Message Input [Ctrl+S to send]", state.config.icons.input)
+	local input_winbar = "Message Input [Ctrl+S to send]"
 	vim.api.nvim_set_option_value("winbar", input_winbar, { win = input_win })
 
 	-- Create wrapper objects that match nui.popup interface
@@ -506,79 +470,17 @@ local window_restore_messages = function()
 	local all_lines = {}
 	local highlight_info = {}
 
-	-- Process all messages and prepare lines with proper labels and icons
+	-- Process all messages and prepare lines
 	for i = state.last_displayed_message + 1, #state.message_history do
 		local msg = state.message_history[i]
-		local start_line = #all_lines
 		local lines = vim.split(msg, "\n")
-
-		for j, line in ipairs(lines) do
-			local left_icon_length = #state.icons.left_circle
-			local right_icon_length = #state.icons.right_circle
-
-			if line:match("^Claude:") then
-				local label = state.icons.left_circle .. "  Claude: " .. state.icons.right_circle
-				local modified_line = label .. line:sub(8) -- 8 to account for "Claude: "
-				table.insert(all_lines, modified_line)
-
-				local line_num = start_line + j - 1
-				local label_length = #"  Claude: "
-
-				-- Store highlight information
-				table.insert(highlight_info, {
-					line_num = line_num,
-					type = "claude",
-					left_icon_length = left_icon_length,
-					label_length = label_length,
-					right_icon_length = right_icon_length,
-				})
-			elseif line:match("^You:") then
-				local label = state.icons.left_circle .. " You: " .. state.icons.right_circle
-				local modified_line = label .. line:sub(5) -- 5 to account for "You: "
-				table.insert(all_lines, modified_line)
-
-				local line_num = start_line + j - 1
-				local label_length = #" You: "
-
-				-- Store highlight information
-				table.insert(highlight_info, {
-					line_num = line_num,
-					type = "user",
-					left_icon_length = left_icon_length,
-					label_length = label_length,
-					right_icon_length = right_icon_length,
-				})
-			else
-				table.insert(all_lines, line)
-			end
+		for _, line in ipairs(lines) do
+			table.insert(all_lines, line)
 		end
 	end
 
 	-- Set all lines at once
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, all_lines)
-
-	-- Apply all highlights
-	for _, hi in ipairs(highlight_info) do
-		if hi.type == "claude" then
-			highlights.add_claude_highlights(
-				state.hlns,
-				bufnr,
-				hi.line_num,
-				hi.left_icon_length,
-				hi.label_length,
-				hi.right_icon_length
-			)
-		else -- user
-			highlights.add_user_highlights(
-				state.hlns,
-				bufnr,
-				hi.line_num,
-				hi.left_icon_length,
-				hi.label_length,
-				hi.right_icon_length
-			)
-		end
-	end
 
 	state.last_displayed_message = #state.message_history
 
@@ -775,7 +677,6 @@ M.list_chats = async.void(function(session)
 		row = row,
 		col = col,
 		style = "minimal",
-		border = "rounded",
 	}
 
 	local buf = vim.api.nvim_create_buf(false, true)
@@ -818,7 +719,7 @@ M.list_chats = async.void(function(session)
 				if msg.sender == "human" then
 					formatted_message = "\nYou: " .. msg.text .. "\n"
 				elseif msg.sender == "assistant" then
-					formatted_message = "Claude:" .. msg.text
+					formatted_message = " Claude:" .. msg.text
 				end
 
 				if formatted_message then
@@ -963,7 +864,6 @@ M.setup = function(config)
 	if state.config.height and (not utils.is_number(state.config.height) or state.config.height > 20) then
 		vim.notify("Invalid height value should be at most 20, falling back to default", vim.log.levels.WARN)
 	end
-	highlights.setup(config)
 end
 
 return M

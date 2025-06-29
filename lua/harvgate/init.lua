@@ -5,8 +5,6 @@
 ---@field width? number Window width
 ---@field height? number Window width
 ---@field keymaps? table Table Keybinding configurations
----@field highlights? table Table Highlight configurations
----@field icons? table Table Icons configurations
 
 local ui = require("harvgate.ui")
 local Session = require("harvgate.session")
@@ -26,17 +24,6 @@ local default_config = {
 		new_chat = "<C-g>",
 		toggle_zen_mode = "<C-r>",
 		copy_code = "<C-y>",
-	},
-	highlights = {
-		claude_label_bg = "#423b37",
-		claude_label_fg = "#E6B99D",
-		user_label_bg = "#3b3b3b",
-		user_label_fg = "#919191",
-	},
-	icons = {
-		chat = "󰭹",
-		default_file = "",
-		input = "",
 	},
 }
 
