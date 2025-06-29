@@ -10,19 +10,19 @@ local Chat = {}
 Chat.__index = Chat
 
 local function parse_stream_data(response)
-	if not response or response.status ~= 200 then
-		return nil
-	end
-
+-- stylua: ignore start
+	if not response then return nil, "No response provided" end
+	if response.status ~= 200 then return nil, string.format("HTTP error: %d", response.status) end
+	if not response.body or response.body == "" then return nil, "Empty response body" end
+	-- stylua: ignore end
 	local completions = {}
-	local data_string = response.body:gsub("\n+", "\n"):gsub("^%s*(.-)%s*$", "%1")
-
-	for line in data_string:gmatch("[^\n]+") do
-		local json_start, json_end = line:find("{.*}")
-		if json_start then
-			local ok, decoded = pcall(vim.json.decode, line:sub(json_start, json_end))
+	local clean_body = response.body:gsub("\n+", "\n"):gsub("^%s*(.-)%s*$", "%1")
+	for line in clean_body:gmatch("[^\r\n]+") do
+		local json_to_parse = line:match("^data:%s*(.+)") or line:match("{.*}")
+		if json_to_parse then
+			local ok, decoded = pcall(vim.json.decode, json_to_parse)
 			if ok and decoded.completion then
-				table.insert(completions, decoded.completion)
+				completions[#completions + 1] = decoded.completion
 			end
 		end
 	end
