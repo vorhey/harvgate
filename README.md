@@ -8,8 +8,6 @@ A Neovim plugin for chatting with Claude directly in your editor using your clau
 
 ## Features
 - Split window interface for chatting with Claude
-- Markdown syntax highlighting for responses
-- Easy navigation between input and message windows
 - Quick conversation reset
 - Session persistence using browser cookie authentication
 
@@ -43,12 +41,6 @@ require('harvgate').setup({
   keymaps = { -- Optional: Custom keymaps
       new_chat = "<C-g>",  -- Start new conversation
       toggle_zen_mode = "<C-r>" -- Codeblocks display only  
-  },
-  highlights = { -- Optional: Custom highlights
-      claude_label_bg = "#423b37",
-      claude_label_fg = "#E6B99D",
-      user_label_bg = "#3b3b3b",
-      user_label_fg = "#919191",
   },
   icons = { -- Optional: Custom icons
       chat = "󰭹",

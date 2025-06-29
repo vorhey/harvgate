@@ -464,7 +464,6 @@ local window_restore_messages = function()
 
 	local bufnr = state.chat_window.messages.bufnr
 	local all_lines = {}
-	local highlight_info = {}
 
 	-- Process all messages and prepare lines
 	for i = state.last_displayed_message + 1, #state.message_history do
