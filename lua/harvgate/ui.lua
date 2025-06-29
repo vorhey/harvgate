@@ -227,11 +227,7 @@ local update_winbar = function()
 			end
 
 			if #filenames > 0 then
-				winbar_text = string.format(
-					"Chat%s: %s",
-					zen_indicator,
-					table.concat(filenames, ", ")
-				)
+				winbar_text = string.format("Chat%s: %s", zen_indicator, table.concat(filenames, ", "))
 			end
 		end
 
