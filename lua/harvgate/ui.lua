@@ -4,6 +4,38 @@ local utils = require("harvgate.utils")
 local state = require("harvgate.state")
 
 local M = {}
+local INPUT_HEIGHT_FOCUSED = 10 -- default, will be updated later
+local INPUT_HEIGHT_UNFOCUSED = 3
+
+local function resize_input_window(height)
+	if
+		state.chat_window
+		and state.chat_window.input.winid
+		and vim.api.nvim_win_is_valid(state.chat_window.input.winid)
+	then
+		vim.api.nvim_win_set_height(state.chat_window.input.winid, height)
+	end
+end
+
+local setup_window_focus_autocmd = function()
+	if not state.chat_window then
+		return
+	end
+
+	vim.api.nvim_create_autocmd("WinEnter", {
+		buffer = state.chat_window.input.bufnr,
+		callback = function()
+			resize_input_window(INPUT_HEIGHT_FOCUSED)
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("WinEnter", {
+		buffer = state.chat_window.messages.bufnr,
+		callback = function()
+			resize_input_window(INPUT_HEIGHT_UNFOCUSED)
+		end,
+	})
+end
 
 local function goto_matching_line()
 	local bufnr = state.chat_window.messages.bufnr
@@ -381,7 +413,7 @@ local chat_new_conversation = async.void(function()
 end)
 
 local create_split_layout = function()
-	local width = state.config.width or 60
+	local width = (state.config and state.config.width) or 60
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
 	local messages_win = vim.api.nvim_get_current_win()
@@ -400,8 +432,12 @@ local create_split_layout = function()
 	local input_win = vim.api.nvim_get_current_win()
 	local input_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(input_win, input_buf)
-	local height = state.config.height or 10
-	vim.cmd(string.format("resize %d", height))
+
+	-- Store the configured heights
+	INPUT_HEIGHT_FOCUSED = (state.config and state.config.height) or 10
+	INPUT_HEIGHT_UNFOCUSED = 3
+
+	vim.cmd(string.format("resize %d", INPUT_HEIGHT_UNFOCUSED)) -- Start with unfocused size
 
 	-- Set window options for input
 	vim.api.nvim_set_option_value("wrap", true, { win = input_win })
@@ -410,7 +446,6 @@ local create_split_layout = function()
 	local input_winbar = "Message Input [Ctrl+S to send]"
 	vim.api.nvim_set_option_value("winbar", input_winbar, { win = input_win })
 
-	-- Create wrapper objects that match nui.popup interface
 	local messages = {
 		bufnr = messages_buf,
 		winid = messages_win,
@@ -444,11 +479,13 @@ local create_split_layout = function()
 		focus_input = function()
 			if vim.api.nvim_win_is_valid(input_win) then
 				vim.api.nvim_set_current_win(input_win)
+				resize_input_window(INPUT_HEIGHT_FOCUSED) -- Expand when focused
 			end
 		end,
 		focus_messages = function()
 			if vim.api.nvim_win_is_valid(messages_win) then
 				vim.api.nvim_set_current_win(messages_win)
+				resize_input_window(INPUT_HEIGHT_UNFOCUSED) -- Shrink when messages focused
 			end
 		end,
 	}
@@ -645,10 +682,14 @@ M.window_toggle = function(session)
 		window_restore_messages()
 		setup_input_keymaps(state.chat_window.input)
 		setup_messages_keymaps(state.chat_window.messages)
+		setup_window_focus_autocmd()
 
 		state.chat_window.layout:mount()
 		state.is_visible = true
 		update_winbar()
+
+		-- Focus and expand the input window by default
+		state.chat_window.focus_input()
 	end)()
 end
 
