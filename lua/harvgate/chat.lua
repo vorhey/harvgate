@@ -88,11 +88,16 @@ end, 2)
 
 -- Helper function to create file attachment
 local function create_attachment(filename, content)
+	local content_str = type(content) == "table" and table.concat(content, "\n") or content
+	-- On Windows, remove newlines to reduce payload size
+	if vim.fn.has("win32") == 1 then
+		content_str = content_str:gsub("\n", " ")
+	end
 	return {
 		file_name = filename,
 		file_type = "",
-		file_size = #content,
-		extracted_content = type(content) == "table" and table.concat(content, "\n") or content,
+		file_size = #content_str,
+		extracted_content = content_str,
 	}
 end
 
