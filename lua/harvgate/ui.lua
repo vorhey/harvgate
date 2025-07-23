@@ -7,6 +7,28 @@ local M = {}
 local INPUT_HEIGHT_FOCUSED = 10 -- default, will be updated later
 local INPUT_HEIGHT_UNFOCUSED = 3
 
+-- Create namespace for highlights
+local ns_id = vim.api.nvim_create_namespace("harvgate_highlights")
+
+-- Define highlight groups for chat messages
+local function setup_highlights()
+	vim.api.nvim_set_hl(0, "HarvgateYouPrefix", { fg = "#61afef", bold = true })
+	vim.api.nvim_set_hl(0, "HarvgateClaudePrefix", { fg = "#d87658", bold = true })
+end
+
+-- Apply highlighting to message prefixes
+local function apply_message_highlights(bufnr, start_line, text)
+	local lines = vim.split(text, "\n")
+	for i, line in ipairs(lines) do
+		local line_num = start_line + i - 1
+		if line:match("^You:") then
+			vim.hl.range(bufnr, ns_id, "HarvgateYouPrefix", { line_num, 0 }, { line_num, 4 })
+		elseif line:match("^ Claude") then
+			vim.hl.range(bufnr, ns_id, "HarvgateClaudePrefix", { line_num, 0 }, { line_num, 11 })
+		end
+	end
+end
+
 local function resize_input_window(height)
 	if
 		state.chat_window
@@ -202,11 +224,16 @@ local window_append_text = function(text, save_history)
 		local buf_line_count = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
 		local is_first_message = buf_line_count == 1
 			and vim.api.nvim_buf_get_lines(state.chat_window.messages.bufnr, 0, 1, false)[1] == ""
+		local start_line
 		if is_first_message then
 			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, 0, 1, false, lines)
+			start_line = 0
 		else
 			vim.api.nvim_buf_set_lines(state.chat_window.messages.bufnr, -1, -1, false, lines)
+			start_line = buf_line_count
 		end
+		-- Apply highlighting to message prefixes
+		apply_message_highlights(state.chat_window.messages.bufnr, start_line, text)
 		-- Scroll to bottom
 		local line_count = vim.api.nvim_buf_line_count(state.chat_window.messages.bufnr)
 		vim.api.nvim_win_set_cursor(state.chat_window.messages.winid, { line_count, 0 })
@@ -413,6 +440,9 @@ local chat_new_conversation = async.void(function()
 end)
 
 local create_split_layout = function()
+	-- Setup highlight groups
+	setup_highlights()
+
 	local width = (state.config and state.config.width) or 60
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
@@ -513,6 +543,15 @@ local window_restore_messages = function()
 
 	-- Set all lines at once
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, all_lines)
+
+	-- Apply highlighting to all restored messages
+	local line_offset = 0
+	for i = state.last_displayed_message + 1, #state.message_history do
+		local msg = state.message_history[i]
+		apply_message_highlights(bufnr, line_offset, msg)
+		local msg_lines = vim.split(msg, "\n")
+		line_offset = line_offset + #msg_lines
+	end
 
 	state.last_displayed_message = #state.message_history
 
