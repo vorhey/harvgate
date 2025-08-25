@@ -2,8 +2,6 @@
 
 A Neovim plugin for chatting with Claude directly in your editor using your claude web subscription cookie for authentication.
 
-[![logo](https://i.postimg.cc/BZ58DKWh/09f5972d-d30f-4d53-8dd7-9b7fdab59b2f.jpg)](https://postimg.cc/t7TCG74P)
-
 [![chat example](https://i.postimg.cc/HLm40CZ5/example.png)](https://postimg.cc/4Y89ZjTN)
 
 ## Features
