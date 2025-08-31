@@ -3,7 +3,7 @@
 ---@field organization_id? string Optional organization ID
 ---@field model? string Optional model ID
 ---@field width? number Window width
----@field height? number Window width
+---@field height? number Window height
 ---@field keymaps? table Table Keybinding configurations
 
 local ui = require("harvgate.ui")
@@ -28,7 +28,18 @@ local default_config = {
 }
 
 local function setup_session()
-	return Session.new(M.config.cookie, M.config.organization_id, M.config.model)
+    return Session.new(M.config.cookie, M.config.organization_id, M.config.model)
+end
+
+local function ensure_session()
+    if not session then
+        session = setup_session()
+    end
+    if not session then
+        vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+        return nil
+    end
+    return session
 end
 
 ---@type Config
@@ -51,7 +62,6 @@ function M.setup(opts)
 	-- Create user commands
 	vim.api.nvim_create_user_command("HarvgateChat", M.toggle, {})
 	vim.api.nvim_create_user_command("HarvgateListChats", M.list_chats, {})
-	vim.api.nvim_create_user_command("HarvgateListChats", M.list_chats, {})
 	vim.api.nvim_create_user_command("HarvgateAddBuffer", function(options)
 		local bufnr = options.args ~= "" and tonumber(options.args) or vim.api.nvim_get_current_buf()
 		M.add_buffer(bufnr)
@@ -67,34 +77,25 @@ end
 
 ---Toggle the Claude chat window
 function M.toggle()
-	if not session then
-		session = setup_session()
-	end
-	if not session then
-		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+	local s = ensure_session()
+	if not s then
 		return
 	end
-	ui.window_toggle(session)
+	ui.window_toggle(s)
 end
 
 function M.list_chats()
-	if not session then
-		session = setup_session()
-	end
-	if not session then
-		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+	local s = ensure_session()
+	if not s then
 		return
 	end
 
-	ui.list_chats(session)
+	ui.list_chats(s)
 end
 
 function M.add_buffer(bufnr)
-	if not session then
-		session = setup_session()
-	end
-	if not session then
-		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+	local s = ensure_session()
+	if not s then
 		return
 	end
 
