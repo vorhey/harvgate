@@ -1,14 +1,21 @@
 local M = {}
 
+-- Seed RNG once per load for UUIDs; avoid per-call seeding
+do
+  local hr = (vim.loop and vim.loop.hrtime and vim.loop.hrtime() or os.time())
+  math.randomseed(hr % 0x7fffffff)
+  -- warm up
+  math.random(); math.random(); math.random()
+end
+
 M.MAX_MESSAGE_LENGTH = 1000 -- Maximum characters per message
 
 function M.uuidv4()
-	math.randomseed(os.time())
-	local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-	return string.gsub(template, "[xy]", function(c)
-		local v = (c == "x") and math.random(0, 0xf) or math.random(8, 0xb)
-		return string.format("%x", v)
-	end)
+    local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+    return string.gsub(template, "[xy]", function(c)
+        local v = (c == "x") and math.random(0, 0xf) or math.random(8, 0xb)
+        return string.format("%x", v)
+    end)
 end
 
 -- Trim message if it exceeds the maximum length
@@ -49,42 +56,23 @@ function M.trim_message(message)
 end
 
 function M.buffer_autocmd(bufnr, cb)
-	vim.api.nvim_create_autocmd("CmdlineLeave", {
-		buffer = bufnr,
-		callback = function()
-			local cmd = vim.fn.getcmdline()
-			if
-				cmd == "q"
-				or cmd == "q!"
-				or cmd == "quit"
-				or cmd == "quit!"
-				or cmd == "wq"
-				or cmd == "wq!"
-				or cmd == "x"
-				or cmd == "x!"
-				or cmd == "xit"
-				or cmd == "xit!"
-				or cmd == "exit"
-				or cmd == "exit!"
-				or cmd == "qa"
-				or cmd == "qa!"
-				or cmd == "qall"
-				or cmd == "qall!"
-				or cmd == "wqa"
-				or cmd == "wqa!"
-				or cmd == "wqall"
-				or cmd == "wqall!"
-				or cmd == "xa"
-				or cmd == "xa!"
-				or cmd == "xall"
-				or cmd == "xall!"
-			then
-				vim.schedule(function()
-					cb()
-				end)
-			end
-		end,
-	})
+    vim.api.nvim_create_autocmd("CmdlineLeave", {
+        buffer = bufnr,
+        callback = function()
+            local cmd = vim.fn.getcmdline()
+            local close_cmds = {
+                q = true, ["q!"] = true, quit = true, ["quit!"] = true,
+                wq = true, ["wq!"] = true, x = true, ["x!"] = true,
+                xit = true, ["xit!"] = true, exit = true, ["exit!"] = true,
+                qa = true, ["qa!"] = true, qall = true, ["qall!"] = true,
+                wqa = true, ["wqa!"] = true, wqall = true, ["wqall!"] = true,
+                xa = true, ["xa!"] = true, xall = true, ["xall!"] = true,
+            }
+            if close_cmds[cmd] then
+                vim.schedule(cb)
+            end
+        end,
+    })
 end
 
 local function get_current_distro()
