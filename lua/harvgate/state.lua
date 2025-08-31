@@ -6,7 +6,7 @@ M.session = nil
 M.chat_window = nil
 M.chat = nil
 M.chat_id = nil
-M.is_chat_visible = nil
+M.is_visible = false
 
 -- History tracking
 M.message_history = {}
