@@ -477,7 +477,7 @@ local create_split_layout = function()
 	-- Setup highlight groups
 	setup_highlights()
 
-	local width = (state.config and state.config.width) or 60
+	local width = state.config.width
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
 	local messages_win = vim.api.nvim_get_current_win()
@@ -976,13 +976,20 @@ M.list_context_buffers = function()
 	end
 end
 
----@param config Config
 M.setup = function(config)
 	state.config = config
-	if state.config.width and (not utils.is_number(state.config.width) or state.config.width < 40) then
+	if not state.config.width then
+		state.config.width = 70
+	end
+	if not state.config.height then
+		state.config.height = 10
+	end
+	if not utils.is_number(state.config.width) or state.config.width < 40 then
+		state.config.width = 70
 		vim.notify("Invalid width value should be at least 40, falling back to default", vim.log.levels.WARN)
 	end
-	if state.config.height and (not utils.is_number(state.config.height) or state.config.height > 20) then
+	if not utils.is_number(state.config.height) or state.config.height > 20 then
+		state.config.height = 10
 		vim.notify("Invalid height value should be at most 20, falling back to default", vim.log.levels.WARN)
 	end
 end
