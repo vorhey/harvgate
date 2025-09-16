@@ -1,8 +1,8 @@
 local curl = require("plenary.curl")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
-local URLBuilder = require("harvgate.url_builder")
-local OptionsBuilder = require("harvgate.opts_builder")
+local URLBuilder = require("harvgate.providers.claude.url_builder")
+local OptionsBuilder = require("harvgate.providers.claude.opts_builder")
 
 ---@class Chat
 ---@field session Session

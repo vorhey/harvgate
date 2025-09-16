@@ -1,13 +1,13 @@
 # Harvgate
 
-A Neovim plugin for chatting with Claude directly in your editor using your claude web subscription cookie for authentication.
+A Neovim plugin for chatting with Anthropic Claude or GitHub Copilot directly in your editor. Claude support uses your web session cookie, while Copilot piggybacks on copilot.lua authentication.
 
 [![chat example](https://i.postimg.cc/HLm40CZ5/example.png)](https://postimg.cc/4Y89ZjTN)
 
 ## Features
-- Split window interface for chatting with Claude
+- Split window interface for chatting with your selected provider
 - Quick conversation reset
-- Session persistence using browser cookie authentication
+- Provider-specific authentication: Claude via browser cookie, Copilot via copilot.lua or token
 
 ## Requirements
 - Neovim >= 0.8.0
@@ -28,31 +28,48 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ## Configuration
 
 
-Harvgate will attempt to load your cookie from the environment variable `CLAUDE_COOKIE` if it is set.
+Harvgate defaults to the Claude backend and will still read `CLAUDE_COOKIE` for backwards compatibility. Use the `provider` option to switch providers and populate the `providers` table for per-backend settings.
 
 ```lua
 require('harvgate').setup({
-  cookie = "your_claude_cookie", -- Required: Cookie from browser session, e.g. sessionKey=sk-ant-sidxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  organization_id = nil,
-  model = nil,
-  width = 80, -- Optional: Width of chat window (default: 60)
-  keymaps = { -- Optional: Custom keymaps
-      new_chat = "<C-g>",  -- Start new conversation
-      toggle_zen_mode = "<C-r>" -- Codeblocks display only  
+  provider = "claude", -- or "copilot"
+  width = 80,
+  height = 10,
+  keymaps = {
+    new_chat = "<C-g>",
+    toggle_zen_mode = "<C-r>",
+    copy_code = "<C-y>",
   },
-  icons = { -- Optional: Custom icons
-      chat = "󰭹",
-      default_file = "",
-      input = "",
+  providers = {
+    claude = {
+      cookie = os.getenv('CLAUDE_COOKIE'),
+      organization_id = nil,
+      model = nil,
+    },
+    copilot = {
+      -- authentication is resolved via copilot.lua; override if you need to
+      token = os.getenv('COPILOT_TOKEN'),
+      model = 'gpt-4o-mini',
+      temperature = 0.2,
+    },
   },
 })
 ```
+
+The legacy top-level `cookie`, `organization_id`, and `model` fields continue to work for the Claude provider, so existing configurations do not need to change immediately.
+
+### Copilot authentication
+
+Harvgate reuses the session handled by [`copilot.lua`](https://github.com/zbirenbaum/copilot.lua). Configure it as you normally would (e.g. `:Copilot auth`), and Harvgate will pull the token via `copilot.auth`. As a fallback you can expose a token through `COPILOT_TOKEN` or `providers.copilot.token`, or rely on the Copilot `hosts.json` file (usually stored in `~/.config/github-copilot/`).
+
+The `:HarvgateListChats` command is only available for providers that expose server-side chat history (currently Claude).
+
 ## Usage
 
 | Keybinding | Action | Mode |
 |-----------|---------|------|
 | `:HarvgateChat` | Toggle chat window | Command |
-| `:HarvgateListChats` | List chats | Command |
+| `:HarvgateListChats` | List chats (Claude only) | Command |
 | `<C-s>` | Send message | Normal, Insert |
 | `<C-k>` | Focus messages window | Normal |
 | `<C-j>` | Focus input window | Normal |
