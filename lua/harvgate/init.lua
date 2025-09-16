@@ -4,6 +4,9 @@
 ---@field cookie? string Legacy Claude cookie, can be set via $CLAUDE_COOKIE
 ---@field organization_id? string Optional Claude organization ID
 ---@field model? string Optional Claude model ID
+---@field token? string Optional Copilot access token
+---@field organization? string Optional Copilot organization slug
+---@field copilot_model? string Optional Copilot model name
 ---@field width? number Window width
 ---@field height? number Window height
 ---@field keymaps? table<string, string> Keybinding configuration
@@ -23,6 +26,9 @@ local default_config = {
 	cookie = os.getenv("CLAUDE_COOKIE"),
 	organization_id = nil,
 	model = nil,
+	token = nil,
+	organization = nil,
+	copilot_model = nil,
 	width = nil,
 	height = nil,
 	keymaps = {
