@@ -1,135 +1,187 @@
 local M = {}
 
-local default_hosts_paths = nil
-local default_apps_paths = nil
+-- Seed RNG once per load for UUIDs; avoid per-call seeding
+do
+	local hr = os.time()
+	math.randomseed(hr % 0x7fffffff)
+	-- warm up
+	math.random()
+	math.random()
+	math.random()
+end
 
-local function build_hosts_paths()
-	if default_hosts_paths then
-		return default_hosts_paths
+M.MAX_MESSAGE_LENGTH = 1000 -- Maximum characters per message
+
+function M.uuidv4()
+	local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+	return string.gsub(template, "[xy]", function(c)
+		local v = (c == "x") and math.random(0, 0xf) or math.random(8, 0xb)
+		return string.format("%x", v)
+	end)
+end
+
+-- Trim message if it exceeds the maximum length
+---@param message string The message to trim
+---@return string trimmed_message The trimmed message
+function M.trim_message(message)
+	if #message <= M.MAX_MESSAGE_LENGTH then
+		return message
 	end
 
-	local home = vim.loop.os_homedir() or "~"
-	default_hosts_paths = {
-		string.format("%s/.config/github-copilot/hosts.json", home),
-		string.format("%s/Library/Application Support/GitHub Copilot/hosts.json", home),
-		string.format("%s/AppData/Roaming/GitHub Copilot/hosts.json", home),
-	}
-
-	return default_hosts_paths
-end
-
-local function build_apps_paths()
-	if default_apps_paths then
-		return default_apps_paths
+	-- Find the last complete sentence within the limit
+	local trim_point = M.MAX_MESSAGE_LENGTH
+	while trim_point > 0 do
+		local char = message:sub(trim_point, trim_point)
+		if char:match("[.!?]") then
+			break
+		end
+		trim_point = trim_point - 1
 	end
 
-	local home = vim.loop.os_homedir() or "~"
-	default_apps_paths = {
-		string.format("%s/.config/github-copilot/apps.json", home),
-		string.format("%s/Library/Application Support/GitHub Copilot/apps.json", home),
-		string.format("%s/AppData/Roaming/GitHub Copilot/apps.json", home),
-	}
+	-- If no sentence boundary found, trim at the last space
+	if trim_point == 0 then
+		trim_point = M.MAX_MESSAGE_LENGTH
+		while trim_point > 0 do
+			local char = message:sub(trim_point, trim_point)
+			if char:match("%s") then
+				break
+			end
+			trim_point = trim_point - 1
+		end
+	end
 
-	return default_apps_paths
+	-- If still no good break point, just trim at the limit
+	if trim_point == 0 then
+		trim_point = M.MAX_MESSAGE_LENGTH
+	end
+	return message:sub(1, trim_point) .. "\n[Message truncated due to length]"
 end
 
-function M.hosts_paths()
-	return build_hosts_paths()
+function M.buffer_autocmd(bufnr, cb)
+	vim.api.nvim_create_autocmd("CmdlineLeave", {
+		buffer = bufnr,
+		callback = function()
+			local cmd = vim.fn.getcmdline()
+			local close_cmds = {
+				q = true,
+				["q!"] = true,
+				quit = true,
+				["quit!"] = true,
+				wq = true,
+				["wq!"] = true,
+				x = true,
+				["x!"] = true,
+				xit = true,
+				["xit!"] = true,
+				exit = true,
+				["exit!"] = true,
+				qa = true,
+				["qa!"] = true,
+				qall = true,
+				["qall!"] = true,
+				wqa = true,
+				["wqa!"] = true,
+				wqall = true,
+				["wqall!"] = true,
+				xa = true,
+				["xa!"] = true,
+				xall = true,
+				["xall!"] = true,
+			}
+			if close_cmds[cmd] then
+				vim.schedule(cb)
+			end
+		end,
+	})
 end
 
-function M.apps_paths()
-	return build_apps_paths()
-end
-
-local function parse_expires_at(value)
-	if type(value) ~= "string" then
+local function get_current_distro()
+	local os_release = io.open("/etc/os-release", "r")
+	if not os_release then
 		return nil
 	end
 
-	local trimmed = value:sub(1, 19)
-	local ok, parsed = pcall(vim.fn.strptime, "%Y-%m-%dT%H:%M:%S", trimmed)
-	if not ok then
-		return nil
+	local distro_name = nil
+	for line in os_release:lines() do
+		if line:match("^NAME=") then
+			distro_name = line:match('NAME="(.-)"') or line:match("NAME=(.-)$")
+			break
+		end
 	end
+	os_release:close()
 
-	if parsed == 0 then
-		return nil
-	end
-
-	return parsed
+	return distro_name
 end
 
-function M.parse_expires_at(value)
-	return parse_expires_at(value)
+function M.is_number(value)
+	return type(value) == "number"
 end
 
----Read the GitHub Copilot hosts file and return the stored token if available
----@return string|nil, number|nil
-function M.read_hosts_token()
-	for _, path in ipairs(build_hosts_paths()) do
-		if vim.fn.filereadable(path) == 1 then
-			local ok, content = pcall(vim.fn.readfile, path)
-			if ok and content then
-				local decoded_ok, data = pcall(vim.json.decode, table.concat(content, "\n"))
-				if decoded_ok and type(data) == "table" then
-					local entry = data["github.com"] or data[1]
-					if entry and type(entry) == "table" then
-						local token = entry.oauth_token or entry.token
-						if token and token ~= "" then
-							return token, parse_expires_at(entry.expires_at)
-						end
+function M.is_distro(distro_names)
+	local current_distro = get_current_distro()
+	if not current_distro then
+		return false
+	end
+
+	current_distro = current_distro:lower()
+
+	for _, distro_name in ipairs(distro_names) do
+		if current_distro:match(distro_name:lower()) then
+			return true
+		end
+	end
+
+	return false
+end
+
+function M.safe_get(t, structure, default)
+	if t == nil then
+		return default
+	end
+	local current = t
+
+	local function extract_path(struct)
+		local path = {}
+		local current_struct = struct
+
+		while true do
+			if type(current_struct) ~= "table" or next(current_struct) == nil then
+				break
+			end
+
+			local k, v = next(current_struct)
+			table.insert(path, k)
+
+			if type(v) == "table" then
+				if next(v) then
+					local subkey, _ = next(v)
+					if type(subkey) == "string" then
+						table.insert(path, 1)
 					end
 				end
+				current_struct = v
+			else
+				-- Reached a leaf node
+				break
 			end
+		end
+
+		return path
+	end
+
+	local path = extract_path(structure)
+
+	for _, key in ipairs(path) do
+		if type(current) ~= "table" then
+			return default
+		end
+		current = current[key]
+		if current == nil then
+			return default
 		end
 	end
 
-	return nil, nil
-end
-
-local function extract_token_from_apps(data)
-	if type(data) ~= "table" then
-		return nil
-	end
-
-	for _, entry in pairs(data) do
-		if type(entry) == "table" then
-			local token = entry.oauth_token or entry.token
-			if token and token ~= "" then
-				return token
-			end
-		end
-	end
-
-	return nil
-end
-
-function M.read_apps_token()
-	for _, path in ipairs(build_apps_paths()) do
-		if vim.fn.filereadable(path) == 1 then
-			local ok, content = pcall(vim.fn.readfile, path)
-			if ok and content then
-				local decoded_ok, data = pcall(vim.json.decode, table.concat(content, "\n"))
-				if decoded_ok then
-					local token = extract_token_from_apps(data)
-					if token then
-						return token
-					end
-				end
-			end
-		end
-	end
-
-	return nil
-end
-
-function M.editor_version()
-	local version = vim.version()
-	return string.format("Neovim/%d.%d.%d", version.major, version.minor, version.patch)
-end
-
-function M.plugin_version()
-	return "harvgate.nvim/0.1.0"
+	return current
 end
 
 return M
