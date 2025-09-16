@@ -48,7 +48,6 @@ local function apply_message_highlights(bufnr, start_line, text)
 			local prefix = assistant_prefix()
 			vim.hl.range(bufnr, ns_id, "HarvgateAssistantPrefix", { line_num, 0 }, { line_num, #prefix })
 		end
-		end
 	end
 end
 
@@ -383,7 +382,8 @@ local chat_send_message = async.void(function(input_text)
 
 		if not response then
 			-- Enhanced error handling
-			local error_text = error_msg or string.format("Unknown error occurred while communicating with %s", provider_label())
+			local error_text = error_msg
+				or string.format("Unknown error occurred while communicating with %s", provider_label())
 
 			-- Show user-friendly error message in chat window
 			local error_message = string.format("%s: *Error: ", provider_label())

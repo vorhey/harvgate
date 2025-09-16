@@ -35,6 +35,11 @@ local function has_auth_source(config)
 		return true
 	end
 
+	local apps_token = utils.read_apps_token()
+	if apps_token then
+		return true
+	end
+
 	return false
 end
 

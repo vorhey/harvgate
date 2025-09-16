@@ -170,7 +170,7 @@ end
 
 Chat.create_chat = async.wrap(function(self, cb)
 	cb(self.conversation_id, nil)
-end, 1)
+end, 2)
 
 ---@async
 ---@param chat_id string
@@ -185,7 +185,7 @@ Chat.send_message = async.wrap(function(self, chat_id, prompt, cb)
 
 	local payload = {
 		model = self.config.model or self.session.model,
-		intent = "conversation",
+		intent = true, -- Copilot expects a boolean intent flag
 		conversation_id = self.conversation_id or chat_id,
 		messages = message_history,
 		stream = true,
