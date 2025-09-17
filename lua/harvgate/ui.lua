@@ -1,7 +1,28 @@
-local Chat = require("harvgate.chat")
 local async = require("plenary.async")
 local utils = require("harvgate.utils")
 local state = require("harvgate.state")
+
+local function provider_label()
+	return state.provider_label or "Assistant"
+end
+
+local function assistant_prefix()
+	return " " .. provider_label()
+end
+
+local function create_chat(session, primary_file, additional_files)
+	if not state.provider or not state.provider.new_chat then
+		return nil, "Provider does not support chat conversations"
+	end
+	local ok, chat, err = pcall(state.provider.new_chat, session, primary_file, additional_files, state.provider_config)
+	if not ok then
+		return nil, chat
+	end
+	if not chat then
+		return nil, err or "Failed to create chat"
+	end
+	return chat
+end
 
 local M = {}
 local INPUT_HEIGHT_FOCUSED = 10 -- default, will be updated later
@@ -13,7 +34,7 @@ local ns_id = vim.api.nvim_create_namespace("harvgate_highlights")
 -- Define highlight groups for chat messages
 local function setup_highlights()
 	vim.api.nvim_set_hl(0, "HarvgateYouPrefix", { fg = "#61afef", bold = true })
-	vim.api.nvim_set_hl(0, "HarvgateClaudePrefix", { fg = "#d87658", bold = true })
+	vim.api.nvim_set_hl(0, "HarvgateAssistantPrefix", { fg = "#d87658", bold = true })
 end
 
 -- Apply highlighting to message prefixes
@@ -23,8 +44,9 @@ local function apply_message_highlights(bufnr, start_line, text)
 		local line_num = start_line + i - 1
 		if line:match("^You:") then
 			vim.hl.range(bufnr, ns_id, "HarvgateYouPrefix", { line_num, 0 }, { line_num, 4 })
-		elseif line:match("^ Claude") then
-			vim.hl.range(bufnr, ns_id, "HarvgateClaudePrefix", { line_num, 0 }, { line_num, 11 })
+		elseif line:match("^" .. vim.pesc(assistant_prefix())) then
+			local prefix = assistant_prefix()
+			vim.hl.range(bufnr, ns_id, "HarvgateAssistantPrefix", { line_num, 0 }, { line_num, #prefix })
 		end
 	end
 end
@@ -264,7 +286,8 @@ local update_winbar = function()
 		and vim.api.nvim_win_is_valid(state.chat_window.messages.winid)
 	then
 		local zen_indicator = state.zen_mode and " [ZEN]" or ""
-		local winbar_text = "Chat"
+		local base_label = string.format("%s Chat%s", provider_label(), zen_indicator)
+		local winbar_text = base_label
 
 		-- Check if we have any context buffers
 		if #state.context_buffers > 0 then
@@ -286,7 +309,7 @@ local update_winbar = function()
 			end
 
 			if #filenames > 0 then
-				winbar_text = string.format("Chat%s: %s", zen_indicator, table.concat(filenames, ", "))
+				winbar_text = string.format("%s: %s", base_label, table.concat(filenames, ", "))
 			end
 		end
 
@@ -310,7 +333,12 @@ local chat_send_message = async.void(function(input_text)
 	end
 
 	if not state.chat then
-		state.chat = Chat.new(state.session, nil, file_contents)
+		local chat_instance, err = create_chat(state.session, nil, file_contents)
+		if not chat_instance then
+			vim.notify(err or "Failed to initialize chat", vim.log.levels.ERROR)
+			return
+		end
+		state.chat = chat_instance
 		state.chat_id = state.chat:create_chat()
 		if not state.chat_id then
 			vim.notify("Failed to create chat conversation", vim.log.levels.ERROR)
@@ -333,12 +361,12 @@ local chat_send_message = async.void(function(input_text)
 		and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
 	then
 		window_append_text(user_message, false)
-		window_append_text("Claude: *thinking...*", false)
+		window_append_text(string.format("%s: *thinking...*", provider_label()), false)
 	end
 
 	async.util.sleep(100) -- Small delay to ensure UI updates
 
-	-- Send message to Claude
+	-- Send message to the active provider
 	local response, error_msg = state.chat:send_message(state.chat_id, input_text)
 
 	vim.schedule(function()
@@ -354,10 +382,11 @@ local chat_send_message = async.void(function(input_text)
 
 		if not response then
 			-- Enhanced error handling
-			local error_text = error_msg or "Unknown error occurred while communicating with Claude"
+			local error_text = error_msg
+				or string.format("Unknown error occurred while communicating with %s", provider_label())
 
 			-- Show user-friendly error message in chat window
-			local error_message = "Claude: *Error: "
+			local error_message = string.format("%s: *Error: ", provider_label())
 				.. error_text
 				.. "*\n"
 				.. "Please check your connection and try again."
@@ -379,16 +408,16 @@ local chat_send_message = async.void(function(input_text)
 		end
 
 		-- Process successful response (existing code)
-		local claude_response = " Claude:" .. response
+		local assistant_response = assistant_prefix() .. ":" .. response
 
 		if
 			state.chat_window
 			and state.chat_window.messages.bufnr
 			and vim.api.nvim_buf_is_valid(state.chat_window.messages.bufnr)
 		then
-			window_append_text(claude_response)
+			window_append_text(assistant_response)
 		else
-			table.insert(state.message_history, claude_response)
+			table.insert(state.message_history, assistant_response)
 			vim.notify("Chat response received and stored. Reopen chat to view.", vim.log.levels.INFO)
 		end
 	end)
@@ -423,7 +452,12 @@ local chat_new_conversation = async.void(function()
 	state.conversation_started = false
 
 	-- Create new chat
-	state.chat = Chat.new(state.session, get_filename())
+	local chat_instance, err = create_chat(state.session, get_filename())
+	if not chat_instance then
+		vim.notify(err or "Failed to initialize chat", vim.log.levels.ERROR)
+		return
+	end
+	state.chat = chat_instance
 	state.chat_id = state.chat:create_chat()
 
 	if not state.chat_id then
@@ -443,7 +477,7 @@ local create_split_layout = function()
 	-- Setup highlight groups
 	setup_highlights()
 
-	local width = (state.config and state.config.width) or 60
+	local width = state.config.width
 	vim.cmd(string.format("vsplit"))
 	vim.cmd(string.format("vertical resize %d", width))
 	local messages_win = vim.api.nvim_get_current_win()
@@ -733,7 +767,18 @@ M.window_toggle = function(session)
 end
 
 M.list_chats = async.void(function(session)
-	state.chat = Chat.new(session, nil)
+	if state.provider and state.provider.supports_list_chats and not state.provider.supports_list_chats() then
+		vim.notify("Current provider does not support listing chats", vim.log.levels.WARN)
+		return
+	end
+
+	local chat_instance, init_err = create_chat(session, nil)
+	if not chat_instance then
+		vim.notify(init_err or "Failed to initialize chat", vim.log.levels.ERROR)
+		return
+	end
+
+	state.chat = chat_instance
 	local all_chats, err = state.chat:get_all_chats()
 
 	if err then
@@ -795,7 +840,7 @@ M.list_chats = async.void(function(session)
 				if msg.sender == "human" then
 					formatted_message = "\nYou: " .. msg.text .. "\n"
 				elseif msg.sender == "assistant" then
-					formatted_message = " Claude:" .. msg.text
+					formatted_message = assistant_prefix() .. ":" .. msg.text
 				end
 
 				if formatted_message then
@@ -931,13 +976,20 @@ M.list_context_buffers = function()
 	end
 end
 
----@param config Config
 M.setup = function(config)
 	state.config = config
-	if state.config.width and (not utils.is_number(state.config.width) or state.config.width < 40) then
+	if not state.config.width then
+		state.config.width = 70
+	end
+	if not state.config.height then
+		state.config.height = 10
+	end
+	if not utils.is_number(state.config.width) or state.config.width < 40 then
+		state.config.width = 70
 		vim.notify("Invalid width value should be at least 40, falling back to default", vim.log.levels.WARN)
 	end
-	if state.config.height and (not utils.is_number(state.config.height) or state.config.height > 20) then
+	if not utils.is_number(state.config.height) or state.config.height > 20 then
+		state.config.height = 10
 		vim.notify("Invalid height value should be at most 20, falling back to default", vim.log.levels.WARN)
 	end
 end

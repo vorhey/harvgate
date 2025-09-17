@@ -1,6 +1,6 @@
 local curl = require("plenary.curl")
 local async = require("plenary.async")
-local strategies = require("harvgate.strategies")
+local strategies = require("harvgate.providers.claude.strategies")
 
 ---@class Session
 ---@field cookie string

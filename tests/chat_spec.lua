@@ -1,7 +1,7 @@
 local async = require("plenary.async")
-local session_module = require("harvgate.session")
+local session_module = require("harvgate.providers.claude.session")
 local assert = require("luassert")
-local chat_module = require("harvgate.chat")
+local chat_module = require("harvgate.providers.claude.chat")
 
 ---@type Chat
 local chat

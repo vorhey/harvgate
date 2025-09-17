@@ -2,6 +2,10 @@ local M = {}
 
 -- Chat and session state
 M.config = nil
+M.provider = nil
+M.provider_name = nil
+M.provider_label = "Assistant"
+M.provider_config = {}
 M.session = nil
 M.chat_window = nil
 M.chat = nil
