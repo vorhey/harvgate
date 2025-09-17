@@ -110,7 +110,10 @@ local function validate_provider(provider, provider_name, provider_config)
 	if provider.validate_config then
 		local ok, err = provider.validate_config(provider_config)
 		if not ok then
-			vim.notify(err or string.format("harvgate: invalid configuration for provider '%s'", provider_name), vim.log.levels.ERROR)
+			vim.notify(
+				err or string.format("harvgate: invalid configuration for provider '%s'", provider_name),
+				vim.log.levels.ERROR
+			)
 			return false
 		end
 	end
@@ -203,11 +206,14 @@ end
 
 ---Toggle the chat window for the configured provider
 function M.toggle()
-	local s = ensure_session()
-	if not s then
+	if not session then
+		session = setup_session()
+	end
+	if not session then
+		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
 		return
 	end
-	ui.window_toggle(s)
+	ui.window_toggle(session)
 end
 
 function M.list_chats()
@@ -225,12 +231,15 @@ function M.list_chats()
 		return
 	end
 
-	ui.list_chats(s)
+	ui.list_chats(session)
 end
 
 function M.add_buffer(bufnr)
-	local s = ensure_session()
-	if not s then
+	if not session then
+		session = setup_session()
+	end
+	if not session then
+		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
 		return
 	end
 
