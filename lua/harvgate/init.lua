@@ -182,6 +182,7 @@ function M.setup(opts)
 	pcall(vim.api.nvim_del_user_command, "HarvgateAddBuffer")
 	pcall(vim.api.nvim_del_user_command, "HarvgateRemoveBuffer")
 	pcall(vim.api.nvim_del_user_command, "HarvgateListBuffers")
+	pcall(vim.api.nvim_del_user_command, "HarvgateSendSelection")
 
 	vim.api.nvim_create_user_command("HarvgateChat", M.toggle, {})
 
@@ -202,6 +203,10 @@ function M.setup(opts)
 	vim.api.nvim_create_user_command("HarvgateListBuffers", function()
 		M.list_buffers()
 	end, {})
+
+	vim.api.nvim_create_user_command("HarvgateSendSelection", function()
+		ui.send_visual_selection()
+	end, { range = true })
 end
 
 ---Toggle the chat window for the configured provider

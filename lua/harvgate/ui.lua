@@ -423,6 +423,44 @@ local chat_send_message = async.void(function(input_text)
 	end)
 end)
 
+---Populate the chat input buffer with the provided text.
+---@param text string
+function M.set_input_text(text)
+	if type(text) ~= "string" then
+		vim.notify("harvgate: Input text must be a string", vim.log.levels.WARN)
+		return
+	end
+
+	if
+		not state.chat_window
+		or not state.chat_window.input
+		or not vim.api.nvim_buf_is_valid(state.chat_window.input.bufnr)
+	then
+		vim.notify("harvgate: Chat input is not available", vim.log.levels.ERROR)
+		return
+	end
+
+	local bufnr = state.chat_window.input.bufnr
+	local winid = state.chat_window.input.winid
+	local lines = vim.split(text, "\n", { plain = true })
+
+	if #lines == 0 then
+		lines = { "" }
+	end
+
+	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+
+	if state.chat_window.focus_input then
+		state.chat_window.focus_input()
+	end
+
+	if winid and vim.api.nvim_win_is_valid(winid) then
+		local row = math.max(#lines, 1)
+		local last_line = lines[#lines] or ""
+		vim.api.nvim_win_set_cursor(winid, { row, #last_line })
+	end
+end
+
 ---Close chat window
 local window_close = function()
 	state.chat_window.layout:unmount()
@@ -973,6 +1011,68 @@ M.list_context_buffers = function()
 	vim.api.nvim_echo({ { "\nBuffers in chat context:\n", "Title" } }, false, {})
 	for _, msg in ipairs(buffer_list) do
 		vim.api.nvim_echo({ { msg .. "\n", "Normal" } }, false, {})
+	end
+end
+
+---Send the current visual selection to the chat
+M.send_visual_selection = function()
+	local bufnr = vim.api.nvim_get_current_buf()
+	local selection = utils.get_visual_selection(bufnr)
+	if not selection or selection == "" then
+		vim.notify("harvgate: Visual selection is empty", vim.log.levels.WARN)
+		return
+	end
+
+	local current_mode = vim.api.nvim_get_mode().mode
+	if current_mode == "v" or current_mode == "V" or current_mode == "\22" then
+		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
+	end
+
+	if not state.session then
+		vim.notify("harvgate: Session not initialized. Call setup() first", vim.log.levels.ERROR)
+		return
+	end
+
+	local should_open = not state.is_visible
+		or not state.chat_window
+		or not state.chat_window.input
+		or not vim.api.nvim_buf_is_valid(state.chat_window.input.bufnr)
+
+	if should_open then
+		M.window_toggle(state.session)
+	end
+
+	local function populate_input()
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			local already_tracked = false
+			for _, ctx_buf in ipairs(state.context_buffers) do
+				if ctx_buf == bufnr then
+					already_tracked = true
+					break
+				end
+			end
+			if not already_tracked then
+				M.add_buffer_to_context(bufnr)
+			end
+			state.source_buf = bufnr
+		end
+
+		if
+			not state.chat_window
+			or not state.chat_window.input
+			or not vim.api.nvim_buf_is_valid(state.chat_window.input.bufnr)
+		then
+			vim.notify("harvgate: Chat input is not available", vim.log.levels.ERROR)
+			return
+		end
+
+		M.set_input_text(selection)
+	end
+
+	if should_open then
+		vim.schedule(populate_input)
+	else
+		populate_input()
 	end
 end
 

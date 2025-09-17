@@ -184,4 +184,48 @@ function M.safe_get(t, structure, default)
 	return current
 end
 
+---Return the currently selected visual text as a string.
+---@param bufnr? integer Optional buffer handle (defaults to current buffer)
+---@return string|nil selection Returns nil when no visual selection is active
+function M.get_visual_selection(bufnr)
+	bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+	local start_pos = vim.fn.getpos("'<")
+	local end_pos = vim.fn.getpos("'>")
+	if start_pos[2] == 0 or end_pos[2] == 0 then
+		return nil
+	end
+
+	local mode = vim.fn.visualmode(true) or vim.fn.visualmode() or "v"
+	local start_row = start_pos[2] - 1
+	local start_col = math.max(start_pos[3] - 1, 0)
+	local end_row = end_pos[2] - 1
+	local end_col = math.max(end_pos[3] - 1, 0)
+
+	if start_row > end_row or (start_row == end_row and start_col > end_col) then
+		start_row, end_row = end_row, start_row
+		start_col, end_col = end_col, start_col
+	end
+
+	local lines = {}
+	if mode == "V" then
+		lines = vim.api.nvim_buf_get_lines(bufnr, start_row, end_row + 1, false)
+	elseif mode == "\22" then
+		local left_col = math.min(start_col, end_col)
+		local right_col = math.max(start_col, end_col)
+		for row = start_row, end_row do
+			local text = vim.api.nvim_buf_get_text(bufnr, row, left_col, row, right_col + 1, {})
+			table.insert(lines, table.concat(text, ""))
+		end
+	else
+		lines = vim.api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col + 1, {})
+	end
+
+	if not lines or vim.tbl_isempty(lines) then
+		return nil
+	end
+
+	return table.concat(lines, "\n")
+end
+
 return M
