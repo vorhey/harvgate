@@ -1,13 +1,13 @@
 # Harvgate
 
-A Neovim plugin for chatting with Anthropic Claude or GitHub Copilot directly in your editor. Claude support uses your web session cookie, while Copilot piggybacks on copilot.lua authentication.
+A Neovim plugin for chatting with Anthropic Claude, GitHub Copilot, or Ollama Cloud directly in your editor. Claude support uses your web session cookie, Copilot piggybacks on copilot.lua authentication, and Ollama Cloud relies on your API key.
 
 [![chat example](https://i.postimg.cc/HLm40CZ5/example.png)](https://postimg.cc/4Y89ZjTN)
 
 ## Features
 - Split window interface for chatting with your selected provider
 - Quick conversation reset
-- Provider-specific authentication: Claude via browser cookie, Copilot via copilot.lua or token
+- Provider-specific authentication: Claude via browser cookie, Copilot via copilot.lua or token, Ollama Cloud via API key
 
 ## Requirements
 - Neovim >= 0.8.0
@@ -52,6 +52,12 @@ require('harvgate').setup({
       model = 'gpt-4o-mini',
       temperature = 0.2,
     },
+    ollama = {
+      api_key = os.getenv('OLLAMA_API_KEY'),
+      model = 'gpt-oss:120b',
+      base_url = 'https://ollama.com/api/chat', -- optional override
+      stream = false, -- Harvgate expects buffered responses
+    },
   },
 })
 ```
@@ -61,6 +67,12 @@ The legacy top-level `cookie`, `organization_id`, and `model` fields continue to
 ### Copilot authentication
 
 Harvgate reuses the session handled by [`copilot.lua`](https://github.com/zbirenbaum/copilot.lua). Configure it as you normally would (e.g. `:Copilot auth`), and Harvgate will pull the token via `copilot.auth`. As a fallback you can expose a token through `COPILOT_TOKEN` or `providers.copilot.token`, or rely on the Copilot `hosts.json` file (usually stored in `~/.config/github-copilot/`).
+
+### Ollama Cloud authentication
+
+The Ollama Cloud provider uses the HTTPS API available at `https://ollama.com/api/chat`. Set `OLLAMA_API_KEY` in your environment or provide `providers.ollama.api_key` in your setup to authenticate. You can override the default model (`gpt-oss:120b`) with `providers.ollama.model`, and adjust request behaviour with keys like `options` or `keep_alive`. Harvgate currently expects non-streaming responses, so leave `stream` as `false` (the default).
+
+Like Copilot, Ollama Cloud does not currently expose chat history, so commands such as `:HarvgateListChats` are disabled when it is the active provider.
 
 The `:HarvgateListChats` command is only available for providers that expose server-side chat history (currently Claude).
 

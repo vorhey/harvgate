@@ -9,6 +9,8 @@ local function load_provider(name)
     providers[name] = require("harvgate.providers.claude")
   elseif name == "copilot" then
     providers[name] = require("harvgate.providers.copilot")
+  elseif name == "ollama" then
+    providers[name] = require("harvgate.providers.ollama")
   else
     error(string.format("harvgate: unknown provider '%s'", tostring(name)))
   end

@@ -1,5 +1,5 @@
 ---@class ProviderConfig
----@field provider? string Provider identifier ("claude" or "copilot")
+---@field provider? string Provider identifier ("claude", "copilot", or "ollama")
 ---@field providers? table<string, table> Provider specific configuration
 ---@field cookie? string Legacy Claude cookie, can be set via $CLAUDE_COOKIE
 ---@field organization_id? string Optional Claude organization ID
@@ -7,6 +7,9 @@
 ---@field token? string Optional Copilot access token
 ---@field organization? string Optional Copilot organization slug
 ---@field copilot_model? string Optional Copilot model name
+---@field ollama_api_key? string Optional Ollama Cloud API key
+---@field ollama_model? string Optional default Ollama model name
+---@field ollama_base_url? string Optional Ollama API endpoint override
 ---@field width? number Window width
 ---@field height? number Window height
 ---@field keymaps? table<string, string> Keybinding configuration
@@ -29,6 +32,9 @@ local default_config = {
 	token = nil,
 	organization = nil,
 	copilot_model = nil,
+	ollama_api_key = os.getenv("OLLAMA_API_KEY"),
+	ollama_model = os.getenv("OLLAMA_MODEL"),
+	ollama_base_url = os.getenv("OLLAMA_BASE_URL"),
 	width = nil,
 	height = nil,
 	keymaps = {
@@ -52,6 +58,10 @@ local function build_provider_config(provider_name)
 		config.token = config.token or M.config.token or os.getenv("COPILOT_TOKEN")
 		config.organization = config.organization or M.config.organization
 		config.model = config.model or M.config.copilot_model
+	elseif provider_name == "ollama" then
+		config.api_key = config.api_key or M.config.ollama_api_key or os.getenv("OLLAMA_API_KEY")
+		config.model = config.model or M.config.ollama_model or os.getenv("OLLAMA_MODEL")
+		config.base_url = config.base_url or M.config.ollama_base_url or os.getenv("OLLAMA_BASE_URL")
 	end
 
 	return config
